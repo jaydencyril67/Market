@@ -20,6 +20,16 @@ function toVelaBars(candles: Candle[]) {
   }))
 }
 
+type VelaBar = ReturnType<typeof toVelaBars>[number]
+type VelaDataRenderer = {
+  updateBar: (bar: VelaBar) => void
+  setBars: (bars: VelaBar[]) => void
+}
+
+function getDataRenderer(chart: VelaChart) {
+  return chart.renderer as unknown as VelaDataRenderer
+}
+
 function App() {
   const [range, setRange] = useState<Range>('1D')
   const [serverCandles, setServerCandles] = useState<Candle[] | null>(null)
@@ -66,7 +76,7 @@ function App() {
     stream.onmessage = (event) => {
       const candle = JSON.parse(event.data) as Candle
       if (!active) return
-      if (historyReady.current) chart.current?.renderer.updateBar(toVelaBars([candle])[0])
+      if (historyReady.current && chart.current) getDataRenderer(chart.current).updateBar(toVelaBars([candle])[0])
       const nextCandles = [...(serverCandlesRef.current ?? []).filter((item) => item.timestamp !== candle.timestamp), candle]
         .sort((first, second) => first.timestamp - second.timestamp)
         .slice(-ranges[range])
@@ -78,7 +88,7 @@ function App() {
 
   useEffect(() => {
     if (!chart.current || serverCandles === null || !historyVersion) return
-    chart.current.renderer.setBars(toVelaBars(serverCandles))
+    getDataRenderer(chart.current).setBars(toVelaBars(serverCandles))
   }, [chartReady, historyVersion])
 
   const candles = serverCandles ?? []
