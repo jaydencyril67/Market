@@ -36,7 +36,7 @@ function App() {
   const [range, setRange] = useState<Range>('1D')
   const [serverCandles, setServerCandles] = useState<Candle[]>([])
   const [hover, setHover] = useState<HoverPoint>(null)
-  const [viewport, setViewport] = useState({ start: Number.MAX_SAFE_INTEGER, count: 80 })
+  const [viewport, setViewport] = useState({ start: 0, count: 80 })
   const drag = useRef<DragState | null>(null)
 
   useEffect(() => {
@@ -67,22 +67,28 @@ function App() {
   const candles = serverCandles.length ? serverCandles : fallback
   const visibleCount = Math.max(12, Math.min(candles.length, viewport.count))
   const maxStart = Math.max(0, candles.length - visibleCount)
-  const start = Math.max(0, Math.min(viewport.start, maxStart))
+  const start = Math.max(0, Math.min(Number.isFinite(viewport.start) ? viewport.start : maxStart, maxStart))
   const visibleCandles = candles.slice(start, start + visibleCount)
+
+  useEffect(() => {
+    if (candles.length) {
+      setViewport((current) => ({ ...current, start: Math.max(0, candles.length - Math.min(candles.length, current.count)) }))
+    }
+  }, [candles.length, range])
   const latest = candles[candles.length - 1]?.close ?? 0
   const previous = candles[candles.length - 2]?.close ?? latest
   const change = previous ? ((latest - previous) / previous) * 100 : 0
-  const rangeLow = Math.min(...visibleCandles.map((candle) => candle.low), latest)
-  const rangeHigh = Math.max(...visibleCandles.map((candle) => candle.high), latest)
-  const margin = (rangeHigh - rangeLow || 1) * 0.08
+  const rangeLow = visibleCandles.length ? Math.min(...visibleCandles.map((candle) => candle.low), latest) : latest || 1
+  const rangeHigh = visibleCandles.length ? Math.max(...visibleCandles.map((candle) => candle.high), latest) : latest || 2
+  const margin = Math.max((rangeHigh - rangeLow || 1) * 0.08, 0.01)
   const scaleMin = rangeLow - margin
   const scaleMax = rangeHigh + margin
   const y = (value: number) => priceTop + ((scaleMax - value) / (scaleMax - scaleMin)) * priceHeight
-  const step = plotWidth / visibleCandles.length
+  const step = visibleCandles.length ? plotWidth / visibleCandles.length : plotWidth
   const candleWidth = Math.max(4, Math.min(18, step * 0.68))
-  const volumeMax = Math.max(...visibleCandles.map((candle) => candle.volume), 1)
+  const volumeMax = visibleCandles.length ? Math.max(...visibleCandles.map((candle) => candle.volume), 1) : 1
   const labels = Array.from({ length: 6 }, (_, index) => scaleMax - ((scaleMax - scaleMin) / 5) * index)
-  const selected = hover ? visibleCandles[hover.index] : null
+  const selected = hover ? visibleCandles[Math.min(hover.index, Math.max(0, visibleCandles.length - 1))] : null
   const timeLabels = visibleCandles.filter((_, index) => index % Math.max(1, Math.floor(visibleCandles.length / 7)) === 0).slice(0, 7)
 
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
@@ -93,8 +99,10 @@ function App() {
       const movement = Math.round((drag.current.clientX - event.clientX) / pixelsPerCandle)
       setViewport((current) => ({ ...current, start: Math.max(0, Math.min(maxStart, drag.current!.start + movement)) }))
     }
-    const index = Math.max(0, Math.min(visibleCandles.length - 1, Math.floor((svgX - left) / step)))
-    if (svgX >= left && svgX <= left + plotWidth) setHover({ index, x: left + (index + 0.5) * step, y: event.clientY - box.top })
+    if (visibleCandles.length && svgX >= left && svgX <= left + plotWidth) {
+      const index = Math.max(0, Math.min(visibleCandles.length - 1, Math.floor((svgX - left) / step)))
+      setHover({ index, x: left + (index + 0.5) * step, y: event.clientY - box.top })
+    }
   }
 
   const handleWheel = (event: ReactWheelEvent<SVGSVGElement>) => {
@@ -123,7 +131,7 @@ function App() {
   return (
     <main className="market-chart">
       <section className="chart-panel">
-        <div className="toolbar"><div className="range-tabs">{(Object.keys(ranges) as Range[]).map((item) => <button className={item === range ? 'selected' : ''} onClick={() => { setRange(item); setServerCandles([]); setViewport({ start: Number.MAX_SAFE_INTEGER, count: Math.min(80, ranges[item]) }); setHover(null) }} key={item}>{item}</button>)}</div><div className="chart-tools"><span className="ohlc-label">{selected ? new Date(selected.timestamp).toLocaleString() : 'OHLCV'}</span><span className="legend"><i className="up-dot" /> Up <i className="down-dot" /> Down</span></div></div>
+        <div className="toolbar"><div className="range-tabs">{(Object.keys(ranges) as Range[]).map((item) => <button className={item === range ? 'selected' : ''} onClick={() => { setRange(item); setServerCandles([]); setViewport({ start: 0, count: Math.min(80, ranges[item]) }); setHover(null) }} key={item}>{item}</button>)}</div><div className="chart-tools"><span className="ohlc-label">{selected ? new Date(selected.timestamp).toLocaleString() : 'OHLCV'}</span><span className="legend"><i className="up-dot" /> Up <i className="down-dot" /> Down</span></div></div>
         <div className="chart-wrap">
           <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-label="Live market candlestick chart" onPointerMove={handlePointerMove} onPointerDown={handlePointerDown} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onWheel={handleWheel} onPointerLeave={() => { if (!drag.current) setHover(null) }}>
             <g className="grid-lines">{labels.map((label) => <line key={label} x1={left} x2={left + plotWidth} y1={y(label)} y2={y(label)} />)}{Array.from({ length: 8 }, (_, index) => <line key={`vertical-${index}`} x1={left + (plotWidth / 7) * index} x2={left + (plotWidth / 7) * index} y1={priceTop} y2={volumeTop + volumeHeight} />)}</g>
