@@ -20,36 +20,50 @@ function toVelaBars(candles: Candle[]) {
   }))
 }
 
-type VelaBar = ReturnType<typeof toVelaBars>[number]
-type VelaDataRenderer = {
-  updateBar: (bar: VelaBar) => void
-  setBars: (bars: VelaBar[]) => void
-}
-
-function getDataRenderer(chart: VelaChart) {
-  return chart.renderer as unknown as VelaDataRenderer
-}
-
 function App() {
   const [range, setRange] = useState<Range>('1D')
   const [serverCandles, setServerCandles] = useState<Candle[] | null>(null)
   const [chartReady, setChartReady] = useState(false)
-  const [historyVersion, setHistoryVersion] = useState(0)
   const chartPanel = useRef<HTMLElement | null>(null)
   const chartElement = useRef<HTMLDivElement | null>(null)
   const chart = useRef<VelaChart | null>(null)
   const historyReady = useRef(false)
   const serverCandlesRef = useRef<Candle[] | null>(null)
+  const pendingChartData = useRef<Candle[] | null>(null)
+  const chartUpdateActive = useRef(false)
+
+  const requestChartData = (candles: Candle[]) => {
+    pendingChartData.current = candles
+    if (!chart.current || chartUpdateActive.current) return
+    chartUpdateActive.current = true
+    void (async () => {
+      try {
+        while (pendingChartData.current) {
+          const nextCandles = pendingChartData.current
+          pendingChartData.current = null
+          if (chart.current) await chart.current.setMarket({ data: toVelaBars(nextCandles), timeframe: '1' })
+        }
+      } catch {
+        pendingChartData.current = null
+      } finally {
+        chartUpdateActive.current = false
+      }
+    })()
+  }
 
   useEffect(() => {
     if (!chartElement.current || chart.current) return
-    chart.current = new Vela(chartElement.current, { data: [], timeframe: '1m', theme: 'dark' })
+    chart.current = new Vela(chartElement.current, { data: [], timeframe: '1', theme: 'dark' })
     setChartReady(true)
     return () => {
       chart.current?.destroy()
       chart.current = null
     }
   }, [])
+
+  useEffect(() => {
+    if (chartReady && pendingChartData.current) requestChartData(pendingChartData.current)
+  }, [chartReady])
 
   useEffect(() => {
     let active = true
@@ -62,7 +76,7 @@ function App() {
           historyReady.current = true
           serverCandlesRef.current = data.candles
           setServerCandles(data.candles)
-          setHistoryVersion((version) => version + 1)
+          requestChartData(data.candles)
         }
       } catch {
         if (active) {
@@ -76,20 +90,15 @@ function App() {
     stream.onmessage = (event) => {
       const candle = JSON.parse(event.data) as Candle
       if (!active) return
-      if (historyReady.current && chart.current) getDataRenderer(chart.current).updateBar(toVelaBars([candle])[0])
       const nextCandles = [...(serverCandlesRef.current ?? []).filter((item) => item.timestamp !== candle.timestamp), candle]
         .sort((first, second) => first.timestamp - second.timestamp)
         .slice(-ranges[range])
       serverCandlesRef.current = nextCandles
       setServerCandles(nextCandles)
+      if (historyReady.current) requestChartData(nextCandles)
     }
     return () => { active = false; stream.close() }
   }, [range])
-
-  useEffect(() => {
-    if (!chart.current || serverCandles === null || !historyVersion) return
-    getDataRenderer(chart.current).setBars(toVelaBars(serverCandles))
-  }, [chartReady, historyVersion])
 
   const candles = serverCandles ?? []
   const latest = candles[candles.length - 1]?.close ?? 0
