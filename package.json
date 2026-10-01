@@ -17,6 +17,7 @@
     "react": "latest",
     "react-dom": "latest",
     "lucide-react": "latest",
+    "@luxalgo/vela": "latest",
     "mongodb": "latest"
   },
   "devDependencies": {
