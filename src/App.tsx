@@ -69,6 +69,7 @@ function App() {
       settings: { hidden: ['scales.price-scale.countdown'] },
     })
     chart.current.renderer.set('countdown', false)
+    chart.current.renderer.applyConfig({ series: { spacing: 0.65 } })
     setChartReady(true)
     return () => {
       chart.current?.destroy()
