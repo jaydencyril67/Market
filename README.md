@@ -10,7 +10,9 @@ npm run build
 npm start
 ```
 
-Open `http://localhost:10000`. The backend exposes:
+For production mode, open `http://localhost:10000`. During frontend development, run the backend in one terminal with `npm start`, then run `npm run dev` in another terminal and open the Vite URL. The Vite dev server proxies `/api` requests to port 10000.
+
+The backend exposes:
 
 - `GET /api/health`
 - `GET /api/market?range=1D`

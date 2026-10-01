@@ -53,8 +53,8 @@ function App() {
   }, [])
 
   const candles = serverCandles.length > 0 ? serverCandles : fallbackCandles
-  const latest = candles[candles.length - 1].close
-  const previous = candles[candles.length - 2].close
+  const latest = candles[candles.length - 1]?.close ?? 0
+  const previous = candles[candles.length - 2]?.close ?? latest
   const change = ((latest - previous) / previous) * 100
   const min = Math.min(...candles.map((c) => c.low)) - 8
   const max = Math.max(...candles.map((c) => c.high)) + 8
