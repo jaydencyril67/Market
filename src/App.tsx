@@ -49,7 +49,10 @@ function App() {
               timeframe: '1',
               ...(visibleRange ? { visibleRange } : {}),
             })
-            if (visibleRange) chart.current.setVisibleRange(visibleRange)
+            if (visibleRange) {
+              await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+              chart.current.setVisibleRange(visibleRange)
+            }
             chartHasData.current = true
           }
         }
