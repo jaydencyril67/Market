@@ -31,7 +31,7 @@ function App() {
   const serverCandlesRef = useRef<Candle[] | null>(null)
   const pendingChartData = useRef<Candle[] | null>(null)
   const chartUpdateActive = useRef(false)
-  const preserveChartView = useRef(false)
+  const chartHasData = useRef(false)
 
   const requestChartData = (candles: Candle[]) => {
     pendingChartData.current = candles
@@ -43,14 +43,14 @@ function App() {
           const nextCandles = pendingChartData.current
           pendingChartData.current = null
           if (chart.current) {
-            const visibleRange = preserveChartView.current ? chart.current.getVisibleRange() : null
+            const visibleRange = chartHasData.current ? chart.current.getVisibleRange() : null
             await chart.current.setMarket({
               data: toVelaBars(nextCandles),
               timeframe: '1',
               ...(visibleRange ? { visibleRange } : {}),
             })
             if (visibleRange) chart.current.setVisibleRange(visibleRange)
-            preserveChartView.current = true
+            chartHasData.current = true
           }
         }
       } catch {
@@ -137,7 +137,7 @@ function App() {
     historyReady.current = false
     setRange(nextRange)
     serverCandlesRef.current = null
-    preserveChartView.current = false
+    chartHasData.current = false
     setServerCandles(null)
   }
 
