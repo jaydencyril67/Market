@@ -44,22 +44,12 @@ function App() {
           pendingChartData.current = null
           if (chart.current) {
             const visibleRange = preserveChartView.current ? chart.current.getVisibleRange() : null
-            const latestTimestamp = nextCandles[nextCandles.length - 1]?.timestamp
-            const previousTimestamp = nextCandles[nextCandles.length - 2]?.timestamp
-            const candleInterval = latestTimestamp && previousTimestamp ? latestTimestamp - previousTimestamp : 60
-            const liveEdge = visibleRange && latestTimestamp && visibleRange.to >= latestTimestamp - candleInterval * 2
-            const nextVisibleRange = liveEdge
-              ? {
-                  from: visibleRange.from + latestTimestamp + candleInterval * 3 - visibleRange.to,
-                  to: latestTimestamp + candleInterval * 3,
-                }
-              : visibleRange
             await chart.current.setMarket({
               data: toVelaBars(nextCandles),
               timeframe: '1',
-              ...(nextVisibleRange ? { visibleRange: nextVisibleRange } : {}),
+              ...(visibleRange ? { visibleRange } : {}),
             })
-            if (nextVisibleRange) chart.current.setVisibleRange(nextVisibleRange)
+            if (visibleRange) chart.current.setVisibleRange(visibleRange)
             preserveChartView.current = true
           }
         }
