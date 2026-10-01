@@ -29,6 +29,7 @@ function App() {
   const chartElement = useRef<HTMLDivElement | null>(null)
   const chart = useRef<VelaChart | null>(null)
   const historyReady = useRef(false)
+  const serverCandlesRef = useRef<Candle[] | null>(null)
 
   useEffect(() => {
     if (!chartElement.current || chart.current) return
@@ -49,11 +50,15 @@ function App() {
         const data = await response.json() as { candles?: Candle[] }
         if (active && Array.isArray(data.candles)) {
           historyReady.current = true
+          serverCandlesRef.current = data.candles
           setServerCandles(data.candles)
           setHistoryVersion((version) => version + 1)
         }
       } catch {
-        if (active) setServerCandles([])
+        if (active) {
+          serverCandlesRef.current = []
+          setServerCandles([])
+        }
       }
     }
     void load()
@@ -61,17 +66,19 @@ function App() {
     stream.onmessage = (event) => {
       const candle = JSON.parse(event.data) as Candle
       if (!active) return
-      if (historyReady.current) chart.current?.updateBar(toVelaBars([candle])[0])
-      setServerCandles((current) => [...(current ?? []).filter((item) => item.timestamp !== candle.timestamp), candle]
+      if (historyReady.current) chart.current?.renderer.updateBar(toVelaBars([candle])[0])
+      const nextCandles = [...(serverCandlesRef.current ?? []).filter((item) => item.timestamp !== candle.timestamp), candle]
         .sort((first, second) => first.timestamp - second.timestamp)
-        .slice(-ranges[range]))
+        .slice(-ranges[range])
+      serverCandlesRef.current = nextCandles
+      setServerCandles(nextCandles)
     }
     return () => { active = false; stream.close() }
   }, [range])
 
   useEffect(() => {
     if (!chart.current || serverCandles === null || !historyVersion) return
-    void chart.current.setBars(toVelaBars(serverCandles))
+    chart.current.renderer.setBars(toVelaBars(serverCandles))
   }, [chartReady, historyVersion])
 
   const candles = serverCandles ?? []
@@ -80,7 +87,11 @@ function App() {
   const change = previous ? ((latest - previous) / previous) * 100 : 0
   const loading = serverCandles === null || !chartReady
 
-  const resetView = () => chart.current?.fitContent()
+  const resetView = () => {
+    const bars = serverCandles
+    if (!bars?.length) return
+    chart.current?.setVisibleRange({ from: bars[0].timestamp, to: bars[bars.length - 1].timestamp })
+  }
   const toggleFullscreen = async () => {
     if (document.fullscreenElement) await document.exitFullscreen()
     else await chartPanel.current?.requestFullscreen()
@@ -88,6 +99,7 @@ function App() {
   const selectRange = (nextRange: Range) => {
     historyReady.current = false
     setRange(nextRange)
+    serverCandlesRef.current = null
     setServerCandles(null)
   }
 
