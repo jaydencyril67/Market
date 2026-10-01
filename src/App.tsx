@@ -24,9 +24,11 @@ function App() {
   const [range, setRange] = useState<Range>('1D')
   const [serverCandles, setServerCandles] = useState<Candle[] | null>(null)
   const [chartReady, setChartReady] = useState(false)
+  const [historyVersion, setHistoryVersion] = useState(0)
   const chartPanel = useRef<HTMLElement | null>(null)
   const chartElement = useRef<HTMLDivElement | null>(null)
   const chart = useRef<VelaChart | null>(null)
+  const historyReady = useRef(false)
 
   useEffect(() => {
     if (!chartElement.current || chart.current) return
@@ -45,28 +47,32 @@ function App() {
         const response = await fetch(`/api/market?range=${range}`)
         if (!response.ok) throw new Error('Market unavailable')
         const data = await response.json() as { candles?: Candle[] }
-        if (active && Array.isArray(data.candles)) setServerCandles(data.candles)
+        if (active && Array.isArray(data.candles)) {
+          historyReady.current = true
+          setServerCandles(data.candles)
+          setHistoryVersion((version) => version + 1)
+        }
       } catch {
         if (active) setServerCandles([])
       }
     }
     void load()
-    const timer = window.setInterval(load, 30000)
     const stream = new EventSource('/api/market/stream')
     stream.onmessage = (event) => {
       const candle = JSON.parse(event.data) as Candle
       if (!active) return
+      if (historyReady.current) chart.current?.updateBar(toVelaBars([candle])[0])
       setServerCandles((current) => [...(current ?? []).filter((item) => item.timestamp !== candle.timestamp), candle]
         .sort((first, second) => first.timestamp - second.timestamp)
         .slice(-ranges[range]))
     }
-    return () => { active = false; window.clearInterval(timer); stream.close() }
+    return () => { active = false; stream.close() }
   }, [range])
 
   useEffect(() => {
-    if (!chart.current || serverCandles === null) return
-    void chart.current.setMarket({ data: toVelaBars(serverCandles), timeframe: '1m' })
-  }, [serverCandles])
+    if (!chart.current || serverCandles === null || !historyVersion) return
+    void chart.current.setBars(toVelaBars(serverCandles))
+  }, [chartReady, historyVersion])
 
   const candles = serverCandles ?? []
   const latest = candles[candles.length - 1]?.close ?? 0
@@ -74,12 +80,13 @@ function App() {
   const change = previous ? ((latest - previous) / previous) * 100 : 0
   const loading = serverCandles === null || !chartReady
 
-  const resetView = () => chart.current?.setVisibleRangePreset('ALL')
+  const resetView = () => chart.current?.fitContent()
   const toggleFullscreen = async () => {
     if (document.fullscreenElement) await document.exitFullscreen()
     else await chartPanel.current?.requestFullscreen()
   }
   const selectRange = (nextRange: Range) => {
+    historyReady.current = false
     setRange(nextRange)
     setServerCandles(null)
   }
