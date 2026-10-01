@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { connectDatabase, isDatabaseConfigured, saveCandles } from './market-store.mjs'
+import { connectDatabase, isDatabaseConfigured, readCandles, saveCandles } from './market-store.mjs'
 
 const port = Number(process.env.PORT || 10000)
 const root = fileURLToPath(new URL('.', import.meta.url))
@@ -59,14 +59,31 @@ function nextCandle(timestamp = Math.floor(Date.now() / candleInterval) * candle
   return candle
 }
 
-nextCandle()
+async function initializeMarket() {
+  if (await connectDatabase()) {
+    try {
+      const storedCandles = await readCandles(1200)
+      if (storedCandles?.length) {
+        candles.push(...storedCandles)
+        price = storedCandles[storedCandles.length - 1].close
+        console.log(`Restored ${storedCandles.length} candles from persistence`)
+        return
+      }
+    } catch (error) {
+      console.error('Candle restoration failed:', error.message)
+    }
+  }
+
+  nextCandle()
+}
+
+await initializeMarket()
 
 async function generateAndPersist() {
   const candle = nextCandle()
   try { await saveCandles([candle]) } catch (error) { console.error('Candle persistence failed:', error.message) }
 }
 setInterval(generateAndPersist, 2_000)
-void connectDatabase()
 
 function sendJson(response, payload, status = 200) {
   response.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' })
