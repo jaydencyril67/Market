@@ -15,24 +15,11 @@ const left = 12
 const right = 78
 const plotWidth = chartWidth - left - right
 
-function fallbackCandles(count: number): Candle[] {
-  let price = 246
-  const now = Date.now()
-  return Array.from({ length: count }, (_, index) => {
-    const open = price
-    const returnRate = Math.sin(index * 0.31) * 0.006 + Math.cos(index * 0.11) * 0.004 + (Math.random() - 0.5) * 0.008
-    const close = Math.max(1, open * Math.exp(returnRate))
-    const spread = open * (0.004 + Math.random() * 0.009)
-    price = close
-    return { timestamp: now - (count - index) * 60_000, open, close, high: Math.max(open, close) + spread * Math.random(), low: Math.min(open, close) - spread * Math.random(), volume: Math.round(8000 + Math.abs(returnRate) * 500000 + Math.random() * 5000) }
-  })
-}
-
 const money = (value: number) => `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 function App() {
   const [range, setRange] = useState<Range>('1D')
-  const [serverCandles, setServerCandles] = useState<Candle[]>([])
+  const [serverCandles, setServerCandles] = useState<Candle[] | null>(null)
   const [hover, setHover] = useState<HoverPoint>(null)
   const [viewport, setViewport] = useState({ start: 0, count: 80 })
   const drag = useRef<DragState | null>(null)
@@ -61,13 +48,12 @@ function App() {
     return () => { active = false; window.clearInterval(timer); stream.close() }
   }, [range])
 
-  const fallback = useMemo(() => fallbackCandles(ranges[range]), [range])
   const candles = useMemo(() => {
-    const source = serverCandles.length ? serverCandles : fallback
+    const source = serverCandles ?? []
     const unique = new Map<number, Candle>()
     source.forEach((candle) => unique.set(candle.timestamp, candle))
     return [...unique.values()].sort((first, second) => first.timestamp - second.timestamp)
-  }, [fallback, serverCandles])
+  }, [serverCandles])
   const visibleCount = Math.max(12, Math.min(candles.length, viewport.count))
   const maxStart = Math.max(0, candles.length - visibleCount)
   const start = Math.max(0, Math.min(Number.isFinite(viewport.start) ? viewport.start : maxStart, maxStart))
