@@ -24,15 +24,37 @@ function App() {
   const [chartType, setChartType] = useState<'candles' | 'line'>('candles')
   const [watching, setWatching] = useState(false)
   const [tick, setTick] = useState(0)
-  const candles = useMemo(() => makeCandles(rangeSizes[range] ?? 48, tick * 0.35), [range, tick])
+  const [serverCandles, setServerCandles] = useState<Candle[]>([])
+  const fallbackCandles = useMemo(() => makeCandles(rangeSizes[range] ?? 48, tick * 0.35), [range, tick])
+
+  useEffect(() => {
+    let active = true
+    const loadMarket = async () => {
+      try {
+        const response = await fetch(`/api/market?range=${range}`)
+        if (!response.ok) throw new Error('Market service unavailable')
+        const data = await response.json() as { candles: Candle[] }
+        if (active) setServerCandles(data.candles)
+      } catch {
+        if (active) setServerCandles([])
+      }
+    }
+    void loadMarket()
+    const timer = window.setInterval(loadMarket, 5000)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  }, [range])
 
   useEffect(() => {
     const timer = window.setInterval(() => setTick((value) => value + 1), 5000)
     return () => window.clearInterval(timer)
   }, [])
 
-  const latest = candles[candles.length - 1].close
-  const previous = candles[candles.length - 2].close
+  const candles = serverCandles.length > 0 ? serverCandles : fallbackCandles
+  const latest = candles[candles.length - 1]?.close ?? 0
+  const previous = candles[candles.length - 2]?.close ?? latest
   const change = ((latest - previous) / previous) * 100
   const min = Math.min(...candles.map((c) => c.low)) - 8
   const max = Math.max(...candles.map((c) => c.high)) + 8
