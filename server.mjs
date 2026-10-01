@@ -5,26 +5,53 @@ import { fileURLToPath } from 'node:url'
 
 const port = Number(process.env.PORT || 10000)
 const root = fileURLToPath(new URL('.', import.meta.url))
-const ranges = { '1H': 24, '4H': 36, '1D': 48, '1W': 56, '1M': 64, ALL: 72 }
+const ranges = { '1H': 60, '4H': 120, '1D': 240, '1W': 336, '1M': 480, ALL: 720 }
 const candles = []
+const candleInterval = 60_000
 let price = 246
 let phase = 0
+let volatility = 0.006
+let trend = 0.00015
 
-function nextCandle() {
-  const open = price
-  const wave = Math.sin(phase * 0.42) * 1.7 + Math.cos(phase * 0.13) * 1.2
-  const drift = 0.22 + Math.sin(phase * 0.07) * 0.08
-  const close = Math.max(1, open + drift + wave + Math.sin(phase * 2.2) * 1.3)
-  const high = Math.max(open, close) + 2.4 + Math.abs(Math.sin(phase)) * 1.8
-  const low = Math.min(open, close) - 2.2 - Math.abs(Math.cos(phase * 1.4)) * 1.5
-  price = close
-  phase += 1
-  candles.push({ open, close, high, low })
-  if (candles.length > 200) candles.shift()
+function randomNormal() {
+  const first = Math.max(Number.EPSILON, Math.random())
+  const second = Math.random()
+  return Math.sqrt(-2 * Math.log(first)) * Math.cos(Math.PI * 2 * second)
 }
 
-while (candles.length < 72) nextCandle()
-setInterval(nextCandle, 5000)
+function nextCandle(timestamp = Date.now()) {
+  const open = price
+  const shock = randomNormal()
+  const cycle = Math.sin(phase / 31) * 0.00035 + Math.cos(phase / 83) * 0.0002
+  const regimeShock = Math.abs(shock) > 2.1 ? 0.012 : 0
+  volatility = Math.min(0.022, Math.max(0.0025, volatility * 0.96 + Math.abs(shock) * 0.0007 + regimeShock))
+  trend = trend * 0.97 + (Math.random() - 0.5) * 0.00035 + cycle
+
+  const returnRate = trend + shock * volatility
+  const close = Math.max(1, open * Math.exp(returnRate))
+  const range = Math.max(open, close) * volatility * (0.7 + Math.random() * 1.2)
+  const upperWick = range * (0.25 + Math.random() * 0.75)
+  const lowerWick = range * (0.25 + Math.random() * 0.75)
+  const high = Math.max(open, close) + upperWick
+  const low = Math.max(0.01, Math.min(open, close) - lowerWick)
+  const volume = Math.round(8500 * (1 + Math.abs(returnRate) * 45) * (0.65 + Math.random() * 0.7))
+
+  price = close
+  phase += 1
+  candles.push({
+    timestamp,
+    open: Number(open.toFixed(4)),
+    close: Number(close.toFixed(4)),
+    high: Number(high.toFixed(4)),
+    low: Number(low.toFixed(4)),
+    volume,
+  })
+  if (candles.length > 800) candles.shift()
+}
+
+const firstTimestamp = Date.now() - 800 * candleInterval
+for (let index = 0; index < 800; index += 1) nextCandle(firstTimestamp + index * candleInterval)
+setInterval(() => nextCandle(), candleInterval)
 
 function sendJson(response, payload, status = 200) {
   response.writeHead(status, {
