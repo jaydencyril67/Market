@@ -29,17 +29,30 @@ function nextCandle(timestamp = Math.floor(Date.now() / candleInterval) * candle
   const returnRate = trend + shock * volatility
   const close = Math.max(1, open * Math.exp(returnRate))
   const spread = Math.max(open, close) * volatility * (0.7 + Math.random() * 1.2)
-  const candle = {
-    timestamp,
-    open: Number(open.toFixed(4)),
-    close: Number(close.toFixed(4)),
-    high: Number((Math.max(open, close) + spread * (0.25 + Math.random() * 0.75)).toFixed(4)),
-    low: Number(Math.max(0.01, Math.min(open, close) - spread * (0.25 + Math.random() * 0.75)).toFixed(4)),
-    volume: Math.round(8500 * (1 + Math.abs(returnRate) * 45) * (0.65 + Math.random() * 0.7)),
-  }
+  const high = Number((Math.max(open, close) + spread * (0.25 + Math.random() * 0.75)).toFixed(4))
+  const low = Number(Math.max(0.01, Math.min(open, close) - spread * (0.25 + Math.random() * 0.75)).toFixed(4))
+  const volume = Math.round(8500 * (1 + Math.abs(returnRate) * 45) * (0.65 + Math.random() * 0.7))
+  const current = candles[candles.length - 1]
+  const candle = current?.timestamp === timestamp
+    ? {
+        ...current,
+        close: Number(close.toFixed(4)),
+        high: Math.max(current.high, high),
+        low: Math.min(current.low, low),
+        volume: current.volume + volume,
+      }
+    : {
+        timestamp,
+        open: Number(open.toFixed(4)),
+        close: Number(close.toFixed(4)),
+        high,
+        low,
+        volume,
+      }
   price = close
   phase += 1
-  candles.push(candle)
+  if (current?.timestamp === timestamp) candles[candles.length - 1] = candle
+  else candles.push(candle)
   if (candles.length > 1200) candles.shift()
   const message = `data: ${JSON.stringify(candle)}\n\n`
   for (const client of streamClients) client.write(message)
@@ -52,7 +65,7 @@ async function generateAndPersist() {
   const candle = nextCandle()
   try { await saveCandles([candle]) } catch (error) { console.error('Candle persistence failed:', error.message) }
 }
-setInterval(generateAndPersist, candleInterval)
+setInterval(generateAndPersist, 2_000)
 void connectDatabase().then((connected) => {
   if (connected) return saveCandles(candles).catch((error) => console.error('Initial candle persistence failed:', error.message))
   return undefined
