@@ -49,6 +49,7 @@ function App() {
               timeframe: '1',
               ...(visibleRange ? { visibleRange } : {}),
             })
+            if (visibleRange) chart.current.setVisibleRange(visibleRange)
             preserveChartView.current = true
           }
         }
@@ -66,6 +67,7 @@ function App() {
       data: [],
       timeframe: '1',
       theme: 'dark',
+      animations: { autoscale: false, liveBar: false },
       settings: { hidden: ['scales.price-scale.countdown'] },
     })
     chart.current.renderer.set('countdown', false)
