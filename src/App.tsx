@@ -62,7 +62,13 @@ function App() {
 
   useEffect(() => {
     if (!chartElement.current || chart.current) return
-    chart.current = new Vela(chartElement.current, { data: [], timeframe: '1', theme: 'dark' })
+    chart.current = new Vela(chartElement.current, {
+      data: [],
+      timeframe: '1',
+      theme: 'dark',
+      settings: { hidden: ['scales.price-scale.countdown'] },
+    })
+    chart.current.renderer.set('countdown', false)
     setChartReady(true)
     return () => {
       chart.current?.destroy()
