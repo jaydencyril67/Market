@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "start": "node server.mjs",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:server": "npm run build"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
