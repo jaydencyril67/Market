@@ -2,11 +2,13 @@ import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { connectDatabase, isDatabaseConfigured, readCandles, saveCandles } from './market-store.mjs'
 
 const port = Number(process.env.PORT || 10000)
 const root = fileURLToPath(new URL('.', import.meta.url))
 const ranges = { '1H': 60, '4H': 120, '1D': 240, '1W': 336, '1M': 480, ALL: 720 }
 const candles = []
+const streamClients = new Set()
 const candleInterval = 60_000
 let price = 246
 let phase = 0
@@ -15,51 +17,57 @@ let trend = 0.00015
 
 function randomNormal() {
   const first = Math.max(Number.EPSILON, Math.random())
-  const second = Math.random()
-  return Math.sqrt(-2 * Math.log(first)) * Math.cos(Math.PI * 2 * second)
+  return Math.sqrt(-2 * Math.log(first)) * Math.cos(Math.PI * 2 * Math.random())
 }
 
-function nextCandle(timestamp = Date.now()) {
+function nextCandle(timestamp = Math.floor(Date.now() / candleInterval) * candleInterval) {
   const open = price
   const shock = randomNormal()
   const cycle = Math.sin(phase / 31) * 0.00035 + Math.cos(phase / 83) * 0.0002
-  const regimeShock = Math.abs(shock) > 2.1 ? 0.012 : 0
-  volatility = Math.min(0.022, Math.max(0.0025, volatility * 0.96 + Math.abs(shock) * 0.0007 + regimeShock))
+  volatility = Math.min(0.022, Math.max(0.0025, volatility * 0.96 + Math.abs(shock) * 0.0007 + (Math.abs(shock) > 2.1 ? 0.012 : 0)))
   trend = trend * 0.97 + (Math.random() - 0.5) * 0.00035 + cycle
-
   const returnRate = trend + shock * volatility
   const close = Math.max(1, open * Math.exp(returnRate))
-  const range = Math.max(open, close) * volatility * (0.7 + Math.random() * 1.2)
-  const upperWick = range * (0.25 + Math.random() * 0.75)
-  const lowerWick = range * (0.25 + Math.random() * 0.75)
-  const high = Math.max(open, close) + upperWick
-  const low = Math.max(0.01, Math.min(open, close) - lowerWick)
-  const volume = Math.round(8500 * (1 + Math.abs(returnRate) * 45) * (0.65 + Math.random() * 0.7))
-
-  price = close
-  phase += 1
-  candles.push({
+  const spread = Math.max(open, close) * volatility * (0.7 + Math.random() * 1.2)
+  const candle = {
     timestamp,
     open: Number(open.toFixed(4)),
     close: Number(close.toFixed(4)),
-    high: Number(high.toFixed(4)),
-    low: Number(low.toFixed(4)),
-    volume,
-  })
-  if (candles.length > 800) candles.shift()
+    high: Number((Math.max(open, close) + spread * (0.25 + Math.random() * 0.75)).toFixed(4)),
+    low: Number(Math.max(0.01, Math.min(open, close) - spread * (0.25 + Math.random() * 0.75)).toFixed(4)),
+    volume: Math.round(8500 * (1 + Math.abs(returnRate) * 45) * (0.65 + Math.random() * 0.7)),
+  }
+  price = close
+  phase += 1
+  candles.push(candle)
+  if (candles.length > 1200) candles.shift()
+  const message = `data: ${JSON.stringify(candle)}\n\n`
+  for (const client of streamClients) client.write(message)
+  return candle
 }
 
-const firstTimestamp = Date.now() - 800 * candleInterval
-for (let index = 0; index < 800; index += 1) nextCandle(firstTimestamp + index * candleInterval)
-setInterval(() => nextCandle(), candleInterval)
+for (let index = 0; index < 1200; index += 1) nextCandle(Date.now() - (1200 - index) * candleInterval)
+
+async function generateAndPersist() {
+  const candle = nextCandle()
+  try { await saveCandles([candle]) } catch (error) { console.error('Candle persistence failed:', error.message) }
+}
+setInterval(generateAndPersist, candleInterval)
+void connectDatabase().then((connected) => {
+  if (connected) return saveCandles(candles).catch((error) => console.error('Initial candle persistence failed:', error.message))
+  return undefined
+})
 
 function sendJson(response, payload, status = 200) {
-  response.writeHead(status, {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Cache-Control': 'no-store',
-  })
+  response.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' })
   response.end(JSON.stringify(payload))
+}
+
+async function marketPayload(range, before) {
+  const count = ranges[range] || ranges['1D']
+  let result = null
+  try { result = await readCandles(count, before) } catch (error) { console.error('Candle history read failed:', error.message) }
+  return { symbol: 'MKT/USD', interval: '1m', persistent: isDatabaseConfigured(), candles: result?.length ? result : candles.slice(-(before ? count : count)), updatedAt: new Date().toISOString() }
 }
 
 async function serveStatic(request, response) {
@@ -77,17 +85,17 @@ async function serveStatic(request, response) {
   }
 }
 
-createServer((request, response) => {
+createServer(async (request, response) => {
   const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`)
-  if (request.method === 'OPTIONS') {
-    response.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,OPTIONS' })
-    return response.end()
+  if (request.method === 'OPTIONS') { response.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,OPTIONS' }); return response.end() }
+  if (url.pathname === '/api/health') return sendJson(response, { status: 'ok', persistence: isDatabaseConfigured(), clients: streamClients.size })
+  if (url.pathname === '/api/market/stream') {
+    response.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'Access-Control-Allow-Origin': '*' })
+    streamClients.add(response)
+    response.write(`data: ${JSON.stringify(candles[candles.length - 1])}\n\n`)
+    request.on('close', () => streamClients.delete(response))
+    return
   }
-  if (url.pathname === '/api/health') return sendJson(response, { status: 'ok' })
-  if (url.pathname === '/api/market') {
-    const range = url.searchParams.get('range') || '1D'
-    const count = ranges[range] || ranges['1D']
-    return sendJson(response, { symbol: 'MKT/USD', candles: candles.slice(-count), updatedAt: new Date().toISOString() })
-  }
+  if (url.pathname === '/api/market') return sendJson(response, await marketPayload(url.searchParams.get('range') || '1D', Number(url.searchParams.get('before')) || undefined))
   return serveStatic(request, response)
 }).listen(port, () => console.log(`Market service listening on port ${port}`))
