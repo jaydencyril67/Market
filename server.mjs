@@ -20,6 +20,11 @@ function randomNormal() {
   return Math.sqrt(-2 * Math.log(first)) * Math.cos(Math.PI * 2 * Math.random())
 }
 
+function replaceInMemoryCandles(nextCandles) {
+  candles.splice(0, candles.length, ...nextCandles)
+  if (candles.length) price = candles[candles.length - 1].close
+}
+
 function nextCandle(timestamp = Math.floor(Date.now() / candleInterval) * candleInterval) {
   const open = price
   const shock = randomNormal()
@@ -80,7 +85,8 @@ async function marketPayload(range, before) {
   const count = ranges[range] || ranges['1D']
   let result = null
   try { result = await readCandles(count, before) } catch (error) { console.error('Candle history read failed:', error.message) }
-  return { symbol: 'MKT/USD', interval: '1m', persistent: isDatabaseConfigured(), candles: result?.length ? result : candles.slice(-(before ? count : count)), updatedAt: new Date().toISOString() }
+  if (result !== null && !before) replaceInMemoryCandles(result)
+  return { symbol: 'MKT/USD', interval: '1m', persistent: isDatabaseConfigured(), candles: result !== null ? result : candles.slice(-count), updatedAt: new Date().toISOString() }
 }
 
 async function serveStatic(request, response) {
