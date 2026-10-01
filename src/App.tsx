@@ -96,10 +96,11 @@ function App() {
   const handlePointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
     const box = event.currentTarget.getBoundingClientRect()
     const svgX = ((event.clientX - box.left) / box.width) * chartWidth
-    if (drag.current) {
+    const activeDrag = drag.current
+    if (activeDrag) {
       const pixelsPerCandle = box.width * (step / chartWidth)
-      const movement = Math.round((drag.current.clientX - event.clientX) / pixelsPerCandle)
-      setViewport((current) => ({ ...current, start: Math.max(0, Math.min(maxStart, drag.current!.start + movement)) }))
+      const movement = Math.round((activeDrag.clientX - event.clientX) / pixelsPerCandle)
+      setViewport((current) => ({ ...current, start: Math.max(0, Math.min(maxStart, activeDrag.start + movement)) }))
     }
     if (visibleCandles.length && svgX >= left && svgX <= left + plotWidth) {
       const index = Math.max(0, Math.min(visibleCandles.length - 1, Math.floor((svgX - left) / step)))
