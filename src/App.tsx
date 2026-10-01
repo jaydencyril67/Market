@@ -38,7 +38,7 @@ function App() {
         const response = await fetch(`/api/market?range=${range}`)
         if (!response.ok) throw new Error('Market unavailable')
         const data = await response.json() as { candles?: Candle[] }
-        if (active && data.candles?.length) setServerCandles(data.candles)
+        if (active && Array.isArray(data.candles)) setServerCandles(data.candles)
       } catch { if (active) setServerCandles([]) }
     }
     void load()
