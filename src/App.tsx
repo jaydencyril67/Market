@@ -64,7 +64,12 @@ function App() {
   }, [range])
 
   const fallback = useMemo(() => fallbackCandles(ranges[range]), [range])
-  const candles = serverCandles.length ? serverCandles : fallback
+  const candles = useMemo(() => {
+    const source = serverCandles.length ? serverCandles : fallback
+    const unique = new Map<number, Candle>()
+    source.forEach((candle) => unique.set(candle.timestamp, candle))
+    return [...unique.values()].sort((first, second) => first.timestamp - second.timestamp)
+  }, [fallback, serverCandles])
   const visibleCount = Math.max(12, Math.min(candles.length, viewport.count))
   const maxStart = Math.max(0, candles.length - visibleCount)
   const start = Math.max(0, Math.min(Number.isFinite(viewport.start) ? viewport.start : maxStart, maxStart))
@@ -144,7 +149,7 @@ function App() {
               const bodyTop = y(Math.max(candle.open, candle.close))
               const bodyHeight = Math.max(1.5, Math.abs(y(candle.open) - y(candle.close)))
               const barHeight = (candle.volume / volumeMax) * volumeHeight
-              return <g className={bullish ? 'candle bullish' : 'candle bearish'} key={candle.timestamp}><line x1={x} x2={x} y1={y(candle.high)} y2={y(candle.low)} /><rect className="volume-bar" x={x - candleWidth / 2} y={volumeTop + volumeHeight - barHeight} width={candleWidth} height={barHeight} /><rect x={x - candleWidth / 2} y={bodyTop} width={candleWidth} height={bodyHeight} /></g>
+              return <g className={bullish ? 'candle bullish' : 'candle bearish'} key={candle.timestamp}><line className="wick" x1={x} x2={x} y1={y(candle.high)} y2={y(candle.low)} /><rect className="volume-bar" x={x - candleWidth / 2} y={volumeTop + volumeHeight - barHeight} width={candleWidth} height={barHeight} /><rect className="body" x={x - candleWidth / 2} y={bodyTop} width={candleWidth} height={bodyHeight} /></g>
             })}
             {hover && selected && <><line className="crosshair" x1={hover.x} x2={hover.x} y1={priceTop} y2={volumeTop + volumeHeight} /><line className="crosshair" x1={left} x2={left + plotWidth} y1={hover.y} y2={hover.y} /><circle className="crosshair-dot" cx={hover.x} cy={y(selected.close)} r="3" /></>}
             <line className="axis-line" x1={left} x2={left + plotWidth} y1={volumeTop + volumeHeight} y2={volumeTop + volumeHeight} />
