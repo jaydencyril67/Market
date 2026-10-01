@@ -50,8 +50,17 @@ function App() {
       } catch { if (active) setServerCandles([]) }
     }
     void load()
-    const timer = window.setInterval(load, 5000)
-    return () => { active = false; window.clearInterval(timer) }
+    const timer = window.setInterval(load, 30000)
+    const stream = new EventSource('/api/market/stream')
+    stream.onmessage = (event) => {
+      const candle = JSON.parse(event.data) as Candle
+      if (!active) return
+      setServerCandles((current) => {
+        const withoutDuplicate = current.filter((item) => item.timestamp !== candle.timestamp)
+        return [...withoutDuplicate, candle].sort((first, second) => first.timestamp - second.timestamp).slice(-ranges[range])
+      })
+    }
+    return () => { active = false; window.clearInterval(timer); stream.close() }
   }, [range])
 
   const fallback = useMemo(() => fallbackCandles(ranges[range]), [range])
