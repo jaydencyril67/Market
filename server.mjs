@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { connectDatabase, isDatabaseConfigured, readCandles, saveCandles } from './market-store.mjs'
+import { connectDatabase, isDatabaseConfigured, saveCandles } from './market-store.mjs'
 
 const port = Number(process.env.PORT || 10000)
 const root = fileURLToPath(new URL('.', import.meta.url))
@@ -18,11 +18,6 @@ let trend = 0.00015
 function randomNormal() {
   const first = Math.max(Number.EPSILON, Math.random())
   return Math.sqrt(-2 * Math.log(first)) * Math.cos(Math.PI * 2 * Math.random())
-}
-
-function replaceInMemoryCandles(nextCandles) {
-  candles.splice(0, candles.length, ...nextCandles)
-  if (candles.length) price = candles[candles.length - 1].close
 }
 
 function nextCandle(timestamp = Math.floor(Date.now() / candleInterval) * candleInterval) {
@@ -64,29 +59,23 @@ function nextCandle(timestamp = Math.floor(Date.now() / candleInterval) * candle
   return candle
 }
 
-for (let index = 0; index < 1200; index += 1) nextCandle(Date.now() - (1200 - index) * candleInterval)
+nextCandle()
 
 async function generateAndPersist() {
   const candle = nextCandle()
   try { await saveCandles([candle]) } catch (error) { console.error('Candle persistence failed:', error.message) }
 }
 setInterval(generateAndPersist, 2_000)
-void connectDatabase().then((connected) => {
-  if (connected) return saveCandles(candles).catch((error) => console.error('Initial candle persistence failed:', error.message))
-  return undefined
-})
+void connectDatabase()
 
 function sendJson(response, payload, status = 200) {
   response.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' })
   response.end(JSON.stringify(payload))
 }
 
-async function marketPayload(range, before) {
+function marketPayload(range) {
   const count = ranges[range] || ranges['1D']
-  let result = null
-  try { result = await readCandles(count, before) } catch (error) { console.error('Candle history read failed:', error.message) }
-  if (result !== null && !before) replaceInMemoryCandles(result)
-  return { symbol: 'MKT/USD', interval: '1m', persistent: isDatabaseConfigured(), candles: result !== null ? result : candles.slice(-count), updatedAt: new Date().toISOString() }
+  return { symbol: 'MKT/USD', interval: '1m', persistent: isDatabaseConfigured(), candles: candles.slice(-count), updatedAt: new Date().toISOString() }
 }
 
 async function serveStatic(request, response) {
@@ -115,6 +104,6 @@ createServer(async (request, response) => {
     request.on('close', () => streamClients.delete(response))
     return
   }
-  if (url.pathname === '/api/market') return sendJson(response, await marketPayload(url.searchParams.get('range') || '1D', Number(url.searchParams.get('before')) || undefined))
+  if (url.pathname === '/api/market') return sendJson(response, marketPayload(url.searchParams.get('range') || '1D'))
   return serveStatic(request, response)
 }).listen(port, () => console.log(`Market service listening on port ${port}`))
