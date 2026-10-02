@@ -132,7 +132,7 @@ function App() {
     })
     chart.current.renderer.set('countdown', false)
     chart.current.renderer.applyConfig({ series: { spacing: 0.65 } })
-    addChartIndicator('volume')
+    addChartIndicator('volume', { inputs: { heightPct: 10 } })
     setChartReady(true)
     return () => {
       chart.current?.destroy()
@@ -249,8 +249,8 @@ function App() {
   type ChartIndicator = { type: string; remove?: () => void }
   type ChartControls = VelaChart & {
     indicators?: () => ChartIndicator[]
-    addNativeIndicator?: (type: string) => void
-    addIndicator?: (type: string) => void
+    addNativeIndicator?: (type: string, options?: { inputs?: Record<string, string | number | boolean> }) => void
+    addIndicator?: (type: string, options?: { inputs?: Record<string, string | number | boolean> }) => void
     drawings?: { showToolbar?: () => void }
     drawingTools?: { showToolbar?: () => void }
   }
@@ -262,11 +262,11 @@ function App() {
     return handles.filter((indicator) => indicator.type === type)
   }
 
-  const addChartIndicator = (type: string) => {
+  const addChartIndicator = (type: string, options?: { inputs?: Record<string, string | number | boolean> }) => {
     const controls = getChartControls()
     const add = controls?.addNativeIndicator ?? controls?.addIndicator
     if (!add) return false
-    add.call(controls, type)
+    add.call(controls, type, options)
     return true
   }
 
@@ -277,7 +277,7 @@ function App() {
       setVolumeVisible(false)
       return
     }
-    if (addChartIndicator('volume')) setVolumeVisible(true)
+    if (addChartIndicator('volume', { inputs: { heightPct: 10 } })) setVolumeVisible(true)
   }
 
   const toggleIndicator = (type: string) => {
