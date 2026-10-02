@@ -131,7 +131,10 @@ function App() {
       settings: { hidden: ['scales.price-scale.countdown'] },
     })
     chart.current.renderer.set('countdown', false)
-    chart.current.renderer.applyConfig({ series: { spacing: 0.65 } })
+    chart.current.renderer.applyConfig({
+      series: { spacing: 0.65 },
+      margins: { top: 2, bottom: 2 },
+    })
     addChartIndicator('volume', { inputs: { heightPct: 8 } })
     setChartReady(true)
     return () => {
