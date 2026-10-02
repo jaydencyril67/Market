@@ -126,7 +126,7 @@ async function marketPayload(range, before, limit) {
   const earliestTimestamp = isDatabaseConfigured() ? (await readCandles(1))?.[0]?.timestamp : candles[0]?.timestamp
   const hasMore = history.length > 0 && earliestTimestamp !== undefined && earliestTimestamp < history[0].timestamp
   return {
-    symbol: 'MKT/USD',
+    symbol: 'KRN/USD',
     interval: '1m',
     persistent: isDatabaseConfigured(),
     candles: history,
