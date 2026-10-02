@@ -178,7 +178,6 @@ function App() {
       const candle = JSON.parse(event.data) as Candle
       if (!active) return
       const previousCandles = serverCandlesRef.current ?? []
-      const previousCandle = previousCandles.find((item) => item.timestamp === candle.timestamp)
       const nextCandles = [...previousCandles.filter((item) => item.timestamp !== candle.timestamp), candle]
         .sort((first, second) => first.timestamp - second.timestamp)
       const displayCandles = aggregateCandles(nextCandles, timeframe)
@@ -186,8 +185,14 @@ function App() {
       setServerCandles(displayCandles)
 
       if (historyReady.current) {
-        const onlyLiveCandleChanged = timeframe === '1m' && previousCandle !== undefined && nextCandles[nextCandles.length - 1]?.timestamp === candle.timestamp
-        if (!onlyLiveCandleChanged || !updateLiveCandle(candle)) requestChartData(displayCandles)
+        const latestSourceCandle = nextCandles[nextCandles.length - 1]
+        const latestDisplayCandle = displayCandles[displayCandles.length - 1]
+        const isLatestCandle = latestSourceCandle?.timestamp === candle.timestamp
+        const canUpdateIncrementally = isLatestCandle && latestDisplayCandle !== undefined
+
+        // updateBar also appends a newly born bar, so avoid setMarket here. Replacing
+        // the whole dataset makes Vela recalculate the layout and visibly shakes the chart.
+        if (!canUpdateIncrementally || !updateLiveCandle(latestDisplayCandle)) requestChartData(displayCandles)
       }
     }
     return () => { active = false; stream.close(); setConnectionStatus('offline') }
