@@ -6,7 +6,8 @@ type Range = '1H' | '4H' | '1D' | '1W' | '1M' | 'ALL'
 
 type VelaChart = InstanceType<typeof Vela>
 
-const ranges: Record<Range, number> = { '1H': 60, '4H': 120, '1D': 240, '1W': 336, '1M': 480, ALL: 720 }
+// Visible windows for the 1-minute candles, matching real crypto chart presets.
+const ranges: Record<Range, number> = { '1H': 60, '4H': 240, '1D': 1_440, '1W': 10_080, '1M': 43_200, ALL: 43_200 }
 const BAR_INTERVAL_MS = 60_000
 const RIGHT_PADDING_BARS = 6
 const money = (value: number) => `${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`

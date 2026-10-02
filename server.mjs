@@ -6,10 +6,12 @@ import { connectDatabase, isDatabaseConfigured, readCandles, saveCandles } from 
 
 const port = Number(process.env.PORT || 10000)
 const root = fileURLToPath(new URL('.', import.meta.url))
-const ranges = { '1H': 60, '4H': 120, '1D': 240, '1W': 336, '1M': 480, ALL: 720 }
+// API history windows for the app's 1-minute crypto candles.
+const ranges = { '1H': 60, '4H': 240, '1D': 1_440, '1W': 10_080, '1M': 43_200, ALL: 43_200 }
 const candles = []
 const streamClients = new Set()
 const candleInterval = 60_000
+const maxCandles = 43_200
 let price = 246
 let phase = 0
 let volatility = 0.006
@@ -53,7 +55,7 @@ function nextCandle(timestamp = Math.floor(Date.now() / candleInterval) * candle
   phase += 1
   if (current?.timestamp === timestamp) candles[candles.length - 1] = candle
   else candles.push(candle)
-  if (candles.length > 1200) candles.shift()
+  if (candles.length > maxCandles) candles.shift()
   const message = `data: ${JSON.stringify(candle)}\n\n`
   for (const client of streamClients) client.write(message)
   return candle
@@ -62,7 +64,7 @@ function nextCandle(timestamp = Math.floor(Date.now() / candleInterval) * candle
 async function initializeMarket() {
   if (await connectDatabase()) {
     try {
-      const storedCandles = await readCandles(1200)
+      const storedCandles = await readCandles(maxCandles)
       if (storedCandles?.length) {
         candles.push(...storedCandles)
         price = storedCandles[storedCandles.length - 1].close
