@@ -62,7 +62,7 @@ function App() {
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'live' | 'reconnecting' | 'offline'>('connecting')
   const [historyHasMore, setHistoryHasMore] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
-  const [volumeVisible, setVolumeVisible] = useState(true)
+  const [volumeVisible, setVolumeVisible] = useState(false)
   const [activeIndicators, setActiveIndicators] = useState<string[]>([])
   const [settingsOpen, setSettingsOpen] = useState(false)
   const chartPanel = useRef<HTMLElement | null>(null)
@@ -136,7 +136,7 @@ function App() {
       series: { spacing: 0.65 },
       margins: { top: 0, bottom: 0 },
     })
-    addChartIndicator('volume', { inputs: { heightPct: 8 } })
+    if (addChartIndicator('volume', { inputs: { heightPct: 8 } })) setVolumeVisible(true)
     setChartReady(true)
     return () => {
       chart.current?.destroy()
@@ -209,6 +209,14 @@ function App() {
     const bars = serverCandles
     if (!bars?.length) return
     chart.current?.setVisibleRange(withRightPadding(bars, timeframe))
+  }
+
+  const resetIndicators = () => {
+    ['sma', 'rsi'].forEach((type) => {
+      getIndicators(type).forEach((indicator) => indicator.remove?.())
+    })
+    setActiveIndicators([])
+    if (!getIndicators('volume').length && addChartIndicator('volume', { inputs: { heightPct: 8 } })) setVolumeVisible(true)
   }
 
   const loadOlderHistory = async () => {
@@ -285,7 +293,7 @@ function App() {
 
   const toggleVolume = () => {
     const handles = getIndicators('volume')
-    if (volumeVisible) {
+    if (handles.length || volumeVisible) {
       handles.forEach((indicator) => indicator.remove?.())
       setVolumeVisible(false)
       return
@@ -323,7 +331,7 @@ function App() {
   }
 
   return <main className="market-chart"><section className="chart-panel" ref={chartPanel}>
-    <div className="chart-topbar"><div className="chart-market"><strong>MKT/USD</strong><span className={`market-status ${connectionStatus}`}>● {connectionStatus.toUpperCase()}</span></div><div className="chart-actions"><button type="button" onClick={resetView}>Reset</button><button type="button" onClick={toggleVolume} className={volumeVisible ? 'active' : ''}>Volume</button><button type="button" onClick={() => toggleIndicator('sma')} className={activeIndicators.includes('sma') ? 'active' : ''}>SMA</button><button type="button" onClick={() => toggleIndicator('rsi')} className={activeIndicators.includes('rsi') ? 'active' : ''}>RSI</button><button type="button" onClick={showDrawingTools}>Draw</button><button type="button" aria-label="Chart settings" aria-expanded={settingsOpen} onClick={toggleSettings}>⚙</button><button type="button" aria-label="Toggle fullscreen" onClick={() => void toggleFullscreen()}>⛶</button></div>{settingsOpen && <div className="chart-settings" role="dialog" aria-label="Chart settings"><strong>Chart settings</strong><label><input type="checkbox" checked={volumeVisible} onChange={toggleVolume} /> Show volume</label><button type="button" onClick={() => { resetView(); setSettingsOpen(false) }}>Reset view</button><button type="button" onClick={() => setSettingsOpen(false)}>Close</button></div>}<div className="control-groups"><div className="control-group"><span className="control-label">Range</span><div className="range-tabs">{(Object.keys(ranges) as Range[]).map((item) => <button type="button" className={item === range ? 'selected' : ''} onClick={() => selectRange(item)} key={item}>{item}</button>)}</div></div><div className="control-group"><span className="control-label">Interval</span><div className="range-tabs">{(['1m', '5m', '15m', '1h', '4h', '1D'] as Timeframe[]).map((item) => <button type="button" className={item === timeframe ? 'selected' : ''} onClick={() => selectTimeframe(item)} key={item}>{item}</button>)}</div></div></div><div className="chart-tools"><button type="button" className="load-history" onClick={() => void loadOlderHistory()} disabled={!historyHasMore || loadingHistory}>{loadingHistory ? 'Loading…' : historyHasMore ? 'Load older' : 'History loaded'}</button><span className={change >= 0 ? 'price-up' : 'price-down'}>{latest ? money(latest) : '—'} {latest ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : ''}</span><span className="chart-mode">Candles · {timeframe}</span></div></div>
+    <div className="chart-topbar"><div className="chart-market"><strong>MKT/USD</strong><span className={`market-status ${connectionStatus}`}>● {connectionStatus.toUpperCase()}</span></div><div className="chart-actions"><button type="button" onClick={() => { resetView(); resetIndicators() }}>Reset</button><button type="button" onClick={toggleVolume} className={volumeVisible ? 'active' : ''}>Volume</button><button type="button" onClick={() => toggleIndicator('sma')} className={activeIndicators.includes('sma') ? 'active' : ''}>SMA</button><button type="button" onClick={() => toggleIndicator('rsi')} className={activeIndicators.includes('rsi') ? 'active' : ''}>RSI</button><button type="button" onClick={showDrawingTools}>Draw</button><button type="button" aria-label="Chart settings" aria-expanded={settingsOpen} onClick={toggleSettings}>⚙</button><button type="button" aria-label="Toggle fullscreen" onClick={() => void toggleFullscreen()}>⛶</button></div>{settingsOpen && <div className="chart-settings" role="dialog" aria-label="Chart settings"><strong>Chart settings</strong><label><input type="checkbox" checked={volumeVisible} onChange={toggleVolume} /> Show volume</label><button type="button" onClick={() => { resetView(); setSettingsOpen(false) }}>Reset view</button><button type="button" onClick={() => setSettingsOpen(false)}>Close</button></div>}<div className="control-groups"><div className="control-group"><span className="control-label">Range</span><div className="range-tabs">{(Object.keys(ranges) as Range[]).map((item) => <button type="button" className={item === range ? 'selected' : ''} onClick={() => selectRange(item)} key={item}>{item}</button>)}</div></div><div className="control-group"><span className="control-label">Interval</span><div className="range-tabs">{(['1m', '5m', '15m', '1h', '4h', '1D'] as Timeframe[]).map((item) => <button type="button" className={item === timeframe ? 'selected' : ''} onClick={() => selectTimeframe(item)} key={item}>{item}</button>)}</div></div></div><div className="chart-tools"><button type="button" className="load-history" onClick={() => void loadOlderHistory()} disabled={!historyHasMore || loadingHistory}>{loadingHistory ? 'Loading…' : historyHasMore ? 'Load older' : 'History loaded'}</button><span className={change >= 0 ? 'price-up' : 'price-down'}>{latest ? money(latest) : '—'} {latest ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : ''}</span><span className="chart-mode">Candles · {timeframe}</span></div></div>
     <div className={`chart-wrap${loading ? ' is-loading' : ''}`}><div ref={chartElement} className="vela-chart" role="img" aria-label="Live market candlestick chart" />{loading && <div className="chart-loading"><span className="loading-spinner" />Loading market data…</div>}{!loading && !candles.length && <div className="chart-loading">No market data available</div>}</div>
   </section></main>
 }
