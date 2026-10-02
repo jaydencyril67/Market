@@ -127,7 +127,7 @@ function App() {
       data: [],
       timeframe: '1',
       theme: 'dark',
-      animations: { autoscale: false, liveBar: false },
+      animations: { autoscale: true, liveBar: false },
       settings: { hidden: ['scales.price-scale.countdown'] },
     })
     chart.current.renderer.set('countdown', false)
