@@ -60,6 +60,8 @@ function App() {
   const [serverCandles, setServerCandles] = useState<Candle[] | null>(null)
   const [chartReady, setChartReady] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'live' | 'reconnecting' | 'offline'>('connecting')
+  const [historyHasMore, setHistoryHasMore] = useState(false)
+  const [loadingHistory, setLoadingHistory] = useState(false)
   const [volumeVisible, setVolumeVisible] = useState(true)
   const chartPanel = useRef<HTMLElement | null>(null)
   const chartElement = useRef<HTMLDivElement | null>(null)
@@ -146,10 +148,11 @@ function App() {
       try {
         const response = await fetch(`/api/market?range=${range}`)
         if (!response.ok) throw new Error('Market unavailable')
-        const data = await response.json() as { candles?: Candle[] }
+        const data = await response.json() as { candles?: Candle[]; hasMore?: boolean }
         if (active && Array.isArray(data.candles)) {
           historyReady.current = true
           serverCandlesRef.current = data.candles
+          setHistoryHasMore(Boolean(data.hasMore))
           const displayCandles = aggregateCandles(data.candles, timeframe)
           setServerCandles(displayCandles)
           requestChartData(displayCandles)
@@ -158,6 +161,7 @@ function App() {
         if (active) {
           serverCandlesRef.current = []
           setServerCandles([])
+          setHistoryHasMore(false)
         }
       }
     }
@@ -195,6 +199,38 @@ function App() {
     if (!bars?.length) return
     chart.current?.setVisibleRange(withRightPadding(bars, timeframe))
   }
+
+  const loadOlderHistory = async () => {
+    const existing = serverCandlesRef.current
+    const before = existing?.[0]?.timestamp
+    if (!existing || !before || loadingHistory || !historyHasMore) return
+    setLoadingHistory(true)
+    try {
+      const response = await fetch(`/api/market?range=ALL&before=${before}&limit=1_000`)
+      if (!response.ok) throw new Error('History unavailable')
+      const data = await response.json() as { candles?: Candle[]; hasMore?: boolean }
+      if (!Array.isArray(data.candles) || !data.candles.length) {
+        setHistoryHasMore(false)
+        return
+      }
+      const merged = [...data.candles, ...existing]
+        .reduce<Candle[]>((result, candle) => {
+          if (!result.some((item) => item.timestamp === candle.timestamp)) result.push(candle)
+          return result
+        }, [])
+        .sort((first, second) => first.timestamp - second.timestamp)
+      serverCandlesRef.current = merged
+      setHistoryHasMore(Boolean(data.hasMore))
+      const displayCandles = aggregateCandles(merged, timeframe)
+      setServerCandles(displayCandles)
+      requestChartData(displayCandles)
+    } catch {
+      setConnectionStatus('reconnecting')
+    } finally {
+      setLoadingHistory(false)
+    }
+  }
+
   const toggleFullscreen = async () => {
     if (document.fullscreenElement) await document.exitFullscreen()
     else await chartPanel.current?.requestFullscreen()
@@ -204,6 +240,7 @@ function App() {
     setRange(nextRange)
     serverCandlesRef.current = null
     chartHasData.current = false
+    setHistoryHasMore(false)
     setServerCandles(null)
   }
 
@@ -245,7 +282,7 @@ function App() {
 
   return <main className="market-chart"><section className="chart-panel" ref={chartPanel}>
     <div className="chart-topbar"><div><strong>MKT/USD</strong><span className={`market-status ${connectionStatus}`}>● {connectionStatus.toUpperCase()}</span></div><div className="chart-actions"><button onClick={resetView}>Reset</button><button onClick={toggleVolume} className={volumeVisible ? 'active' : ''}>Volume</button><button onClick={() => addIndicator('sma')}>SMA</button><button onClick={() => addIndicator('rsi')}>RSI</button><button onClick={showDrawingTools}>Draw</button><button aria-label="Chart settings">⚙</button><button aria-label="Toggle fullscreen" onClick={() => void toggleFullscreen()}>⛶</button></div></div>
-    <div className="toolbar"><div className="control-groups"><div className="control-group"><span className="control-label">Range</span><div className="range-tabs">{(Object.keys(ranges) as Range[]).map((item) => <button className={item === range ? 'selected' : ''} onClick={() => selectRange(item)} key={item}>{item}</button>)}</div></div><div className="control-group"><span className="control-label">Interval</span><div className="range-tabs">{(['1m', '5m', '15m', '1h', '4h', '1D'] as Timeframe[]).map((item) => <button className={item === timeframe ? 'selected' : ''} onClick={() => selectTimeframe(item)} key={item}>{item}</button>)}</div></div></div><div className="chart-tools"><span className={change >= 0 ? 'price-up' : 'price-down'}>{latest ? money(latest) : '—'} {latest ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : ''}</span><span className="chart-mode">Candles · {timeframe}</span></div></div>
+    <div className="toolbar"><div className="control-groups"><div className="control-group"><span className="control-label">Range</span><div className="range-tabs">{(Object.keys(ranges) as Range[]).map((item) => <button className={item === range ? 'selected' : ''} onClick={() => selectRange(item)} key={item}>{item}</button>)}</div></div><div className="control-group"><span className="control-label">Interval</span><div className="range-tabs">{(['1m', '5m', '15m', '1h', '4h', '1D'] as Timeframe[]).map((item) => <button className={item === timeframe ? 'selected' : ''} onClick={() => selectTimeframe(item)} key={item}>{item}</button>)}</div></div></div><div className="chart-tools"><button className="load-history" onClick={() => void loadOlderHistory()} disabled={!historyHasMore || loadingHistory}>{loadingHistory ? 'Loading…' : historyHasMore ? 'Load older' : 'History loaded'}</button><span className={change >= 0 ? 'price-up' : 'price-down'}>{latest ? money(latest) : '—'} {latest ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : ''}</span><span className="chart-mode">Candles · {timeframe}</span></div></div>
     <div className={`chart-wrap${loading ? ' is-loading' : ''}`}><div ref={chartElement} className="vela-chart" role="img" aria-label="Live market candlestick chart" />{loading && <div className="chart-loading"><span className="loading-spinner" />Loading market data…</div>}{!loading && !candles.length && <div className="chart-loading">No market data available</div>}</div>
   </section></main>
 }

@@ -90,10 +90,32 @@ function sendJson(response, payload, status = 200) {
   response.end(JSON.stringify(payload))
 }
 
-function marketPayload(range) {
+async function marketPayload(range, before, limit) {
   const count = ranges[range] ?? ranges['1D']
-  const history = count === null ? candles : candles.slice(-count)
-  return { symbol: 'MKT/USD', interval: '1m', persistent: isDatabaseConfigured(), candles: history, updatedAt: new Date().toISOString() }
+  const requestedLimit = limit == null ? count : Math.max(1, Math.min(limit, 10_000))
+  let history
+  if (isDatabaseConfigured()) {
+    const stored = await readCandles(requestedLimit, before)
+    history = stored?.length ? stored : []
+  } else if (before) {
+    history = candles.filter((candle) => candle.timestamp < before).slice(-(requestedLimit ?? candles.length))
+  } else if (requestedLimit === null) {
+    history = candles
+  } else {
+    history = candles.slice(-requestedLimit)
+  }
+
+  const earliestTimestamp = isDatabaseConfigured() ? (await readCandles(1))?.[0]?.timestamp : candles[0]?.timestamp
+  const hasMore = history.length > 0 && earliestTimestamp !== undefined && earliestTimestamp < history[0].timestamp
+  return {
+    symbol: 'MKT/USD',
+    interval: '1m',
+    persistent: isDatabaseConfigured(),
+    candles: history,
+    hasMore,
+    nextBefore: history[0]?.timestamp ?? null,
+    updatedAt: new Date().toISOString(),
+  }
 }
 
 async function serveStatic(request, response) {
@@ -119,9 +141,17 @@ createServer(async (request, response) => {
     response.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'Access-Control-Allow-Origin': '*' })
     streamClients.add(response)
     response.write(`data: ${JSON.stringify(candles[candles.length - 1])}\n\n`)
-    request.on('close', () => streamClients.delete(response))
+    const heartbeat = setInterval(() => response.write(': keep-alive\n\n'), 15_000)
+    request.on('close', () => { clearInterval(heartbeat); streamClients.delete(response) })
     return
   }
-  if (url.pathname === '/api/market') return sendJson(response, marketPayload(url.searchParams.get('range') || '1D'))
+  if (url.pathname === '/api/market') {
+    const range = url.searchParams.get('range') || '1D'
+    const beforeValue = Number(url.searchParams.get('before'))
+    const limitValue = Number(url.searchParams.get('limit'))
+    const before = Number.isFinite(beforeValue) && beforeValue > 0 ? beforeValue : undefined
+    const limit = Number.isFinite(limitValue) && limitValue > 0 ? limitValue : undefined
+    return sendJson(response, await marketPayload(range, before, limit))
+  }
   return serveStatic(request, response)
 }).listen(port, () => console.log(`Market service listening on port ${port}`))
