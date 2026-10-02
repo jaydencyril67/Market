@@ -135,7 +135,7 @@ function App() {
       series: { spacing: 0.65 },
       margins: { top: 0, bottom: 0 },
     })
-    addChartIndicator('volume', { inputs: { heightPct: 8 } })
+    addChartIndicator('volume', { inputs: { heightPct: 6 } })
     setChartReady(true)
     return () => {
       chart.current?.destroy()
@@ -280,7 +280,7 @@ function App() {
       setVolumeVisible(false)
       return
     }
-    if (addChartIndicator('volume', { inputs: { heightPct: 8 } })) setVolumeVisible(true)
+    if (addChartIndicator('volume', { inputs: { heightPct: 6 } })) setVolumeVisible(true)
   }
 
   const toggleIndicator = (type: string) => {
