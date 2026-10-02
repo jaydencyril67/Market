@@ -3,11 +3,13 @@ import { Vela } from '@luxalgo/vela'
 
 type Candle = { timestamp: number; open: number; close: number; high: number; low: number; volume: number }
 type Range = '1H' | '4H' | '1D' | '1W' | '1M' | 'ALL'
+type Timeframe = '1m' | '5m' | '15m' | '1h' | '4h' | '1D'
 
 type VelaChart = InstanceType<typeof Vela>
 
 // Visible windows for the 1-minute candles, matching real crypto chart presets.
-const ranges: Record<Range, number> = { '1H': 60, '4H': 240, '1D': 1_440, '1W': 10_080, '1M': 43_200, ALL: 43_200 }
+const ranges: Record<Range, number | null> = { '1H': 60, '4H': 240, '1D': 1_440, '1W': 10_080, '1M': 43_200, ALL: null }
+const timeframeMinutes: Record<Timeframe, number> = { '1m': 1, '5m': 5, '15m': 15, '1h': 60, '4h': 240, '1D': 1_440 }
 const BAR_INTERVAL_MS = 60_000
 const RIGHT_PADDING_BARS = 6
 const money = (value: number) => `${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -23,8 +25,28 @@ function toVelaBars(candles: Candle[]) {
   }))
 }
 
-function withRightPadding(candles: Candle[], visibleRange?: { from: number; to: number } | null) {
-  const paddedTo = candles[candles.length - 1].timestamp + BAR_INTERVAL_MS * RIGHT_PADDING_BARS
+function aggregateCandles(candles: Candle[], timeframe: Timeframe): Candle[] {
+  const minutes = timeframeMinutes[timeframe]
+  if (minutes === 1) return candles
+  const interval = minutes * BAR_INTERVAL_MS
+  const groups = new Map<number, Candle>()
+  for (const candle of candles) {
+    const bucket = Math.floor(candle.timestamp / interval) * interval
+    const existing = groups.get(bucket)
+    if (!existing) {
+      groups.set(bucket, { ...candle, timestamp: bucket })
+    } else {
+      existing.high = Math.max(existing.high, candle.high)
+      existing.low = Math.min(existing.low, candle.low)
+      existing.close = candle.close
+      existing.volume += candle.volume
+    }
+  }
+  return [...groups.values()].sort((first, second) => first.timestamp - second.timestamp)
+}
+
+function withRightPadding(candles: Candle[], timeframe: Timeframe, visibleRange?: { from: number; to: number } | null) {
+  const paddedTo = candles[candles.length - 1].timestamp + BAR_INTERVAL_MS * timeframeMinutes[timeframe] * RIGHT_PADDING_BARS
   if (!visibleRange) return { from: candles[0].timestamp, to: paddedTo }
 
   const span = visibleRange.to - visibleRange.from
@@ -34,8 +56,11 @@ function withRightPadding(candles: Candle[], visibleRange?: { from: number; to: 
 
 function App() {
   const [range, setRange] = useState<Range>('1D')
+  const [timeframe, setTimeframe] = useState<Timeframe>('1m')
   const [serverCandles, setServerCandles] = useState<Candle[] | null>(null)
   const [chartReady, setChartReady] = useState(false)
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'live' | 'reconnecting' | 'offline'>('connecting')
+  const [volumeVisible, setVolumeVisible] = useState(true)
   const chartPanel = useRef<HTMLElement | null>(null)
   const chartElement = useRef<HTMLDivElement | null>(null)
   const chart = useRef<VelaChart | null>(null)
@@ -58,12 +83,12 @@ function App() {
             const visibleRange = chartHasData.current ? chart.current.getVisibleRange() : null
             await chart.current.setMarket({
               data: toVelaBars(nextCandles),
-              timeframe: '1',
+              timeframe: timeframeMinutes[timeframe].toString(),
               ...(visibleRange ? { visibleRange } : {}),
             })
             if (!chartHasData.current) {
               await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
-              chart.current.setVisibleRange(withRightPadding(nextCandles, visibleRange))
+              chart.current.setVisibleRange(withRightPadding(nextCandles, timeframe, visibleRange))
             }
             chartHasData.current = true
           }
@@ -113,7 +138,7 @@ function App() {
 
   useEffect(() => {
     if (chartReady && pendingChartData.current) requestChartData(pendingChartData.current)
-  }, [chartReady])
+  }, [chartReady, timeframe])
 
   useEffect(() => {
     let active = true
@@ -125,8 +150,9 @@ function App() {
         if (active && Array.isArray(data.candles)) {
           historyReady.current = true
           serverCandlesRef.current = data.candles
-          setServerCandles(data.candles)
-          requestChartData(data.candles)
+          const displayCandles = aggregateCandles(data.candles, timeframe)
+          setServerCandles(displayCandles)
+          requestChartData(displayCandles)
         }
       } catch {
         if (active) {
@@ -137,6 +163,8 @@ function App() {
     }
     void load()
     const stream = new EventSource('/api/market/stream')
+    stream.onopen = () => setConnectionStatus('live')
+    stream.onerror = () => setConnectionStatus(stream.readyState === EventSource.CLOSED ? 'offline' : 'reconnecting')
     stream.onmessage = (event) => {
       const candle = JSON.parse(event.data) as Candle
       if (!active) return
@@ -144,17 +172,17 @@ function App() {
       const previousCandle = previousCandles.find((item) => item.timestamp === candle.timestamp)
       const nextCandles = [...previousCandles.filter((item) => item.timestamp !== candle.timestamp), candle]
         .sort((first, second) => first.timestamp - second.timestamp)
-        .slice(-ranges[range])
+      const displayCandles = aggregateCandles(nextCandles, timeframe)
       serverCandlesRef.current = nextCandles
-      setServerCandles(nextCandles)
+      setServerCandles(displayCandles)
 
       if (historyReady.current) {
-        const onlyLiveCandleChanged = previousCandle !== undefined && nextCandles[nextCandles.length - 1]?.timestamp === candle.timestamp
-        if (!onlyLiveCandleChanged || !updateLiveCandle(candle)) requestChartData(nextCandles)
+        const onlyLiveCandleChanged = timeframe === '1m' && previousCandle !== undefined && nextCandles[nextCandles.length - 1]?.timestamp === candle.timestamp
+        if (!onlyLiveCandleChanged || !updateLiveCandle(candle)) requestChartData(displayCandles)
       }
     }
-    return () => { active = false; stream.close() }
-  }, [range])
+    return () => { active = false; stream.close(); setConnectionStatus('offline') }
+  }, [range, timeframe])
 
   const candles = serverCandles ?? []
   const latest = candles[candles.length - 1]?.close ?? 0
@@ -165,7 +193,7 @@ function App() {
   const resetView = () => {
     const bars = serverCandles
     if (!bars?.length) return
-    chart.current?.setVisibleRange(withRightPadding(bars))
+    chart.current?.setVisibleRange(withRightPadding(bars, timeframe))
   }
   const toggleFullscreen = async () => {
     if (document.fullscreenElement) await document.exitFullscreen()
@@ -179,9 +207,45 @@ function App() {
     setServerCandles(null)
   }
 
+  const toggleVolume = () => {
+    const currentChart = chart.current
+    if (!currentChart) return
+    const chartControls = currentChart as unknown as {
+      indicators: () => Array<{ type: string; remove: () => void }>
+      addNativeIndicator: (type: string) => void
+    }
+    const handles = chartControls.indicators().filter((indicator) => indicator.type === 'volume')
+    if (volumeVisible) {
+      handles.forEach((indicator) => indicator.remove())
+    } else {
+      chartControls.addNativeIndicator('volume')
+    }
+    setVolumeVisible(!volumeVisible)
+  }
+
+  const addIndicator = (type: string) => {
+    const currentChart = chart.current as (VelaChart & { addNativeIndicator?: (name: string) => void }) | null
+    currentChart?.addNativeIndicator?.(type)
+  }
+
+  const showDrawingTools = () => {
+    const currentChart = chart.current as (VelaChart & { drawings?: { showToolbar: () => void } }) | null
+    currentChart?.drawings?.showToolbar()
+  }
+
+  const selectTimeframe = (nextTimeframe: Timeframe) => {
+    if (nextTimeframe === timeframe) return
+    historyReady.current = false
+    chartHasData.current = false
+    setTimeframe(nextTimeframe)
+    serverCandlesRef.current = null
+    pendingChartData.current = null
+    setServerCandles(null)
+  }
+
   return <main className="market-chart"><section className="chart-panel" ref={chartPanel}>
-    <div className="chart-topbar"><div><strong>MKT/USD</strong><span className="market-status">● LIVE</span></div><div className="chart-actions"><button onClick={resetView}>Reset</button><button className="active">Volume</button><button aria-label="Chart settings">⚙</button><button aria-label="Toggle fullscreen" onClick={() => void toggleFullscreen()}>⛶</button></div></div>
-    <div className="toolbar"><div className="range-tabs">{(Object.keys(ranges) as Range[]).map((item) => <button className={item === range ? 'selected' : ''} onClick={() => selectRange(item)} key={item}>{item}</button>)}</div><div className="chart-tools"><span className={change >= 0 ? 'price-up' : 'price-down'}>{latest ? money(latest) : '—'} {latest ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : ''}</span><span className="chart-mode">Candles · 1m</span></div></div>
+    <div className="chart-topbar"><div><strong>MKT/USD</strong><span className={`market-status ${connectionStatus}`}>● {connectionStatus.toUpperCase()}</span></div><div className="chart-actions"><button onClick={resetView}>Reset</button><button onClick={toggleVolume} className={volumeVisible ? 'active' : ''}>Volume</button><button onClick={() => addIndicator('sma')}>SMA</button><button onClick={() => addIndicator('rsi')}>RSI</button><button onClick={showDrawingTools}>Draw</button><button aria-label="Chart settings">⚙</button><button aria-label="Toggle fullscreen" onClick={() => void toggleFullscreen()}>⛶</button></div></div>
+    <div className="toolbar"><div className="control-groups"><div className="control-group"><span className="control-label">Range</span><div className="range-tabs">{(Object.keys(ranges) as Range[]).map((item) => <button className={item === range ? 'selected' : ''} onClick={() => selectRange(item)} key={item}>{item}</button>)}</div></div><div className="control-group"><span className="control-label">Interval</span><div className="range-tabs">{(['1m', '5m', '15m', '1h', '4h', '1D'] as Timeframe[]).map((item) => <button className={item === timeframe ? 'selected' : ''} onClick={() => selectTimeframe(item)} key={item}>{item}</button>)}</div></div></div><div className="chart-tools"><span className={change >= 0 ? 'price-up' : 'price-down'}>{latest ? money(latest) : '—'} {latest ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : ''}</span><span className="chart-mode">Candles · {timeframe}</span></div></div>
     <div className={`chart-wrap${loading ? ' is-loading' : ''}`}><div ref={chartElement} className="vela-chart" role="img" aria-label="Live market candlestick chart" />{loading && <div className="chart-loading"><span className="loading-spinner" />Loading market data…</div>}{!loading && !candles.length && <div className="chart-loading">No market data available</div>}</div>
   </section></main>
 }
