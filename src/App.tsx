@@ -7,7 +7,9 @@ type Range = '1H' | '4H' | '1D' | '1W' | '1M' | 'ALL'
 type VelaChart = InstanceType<typeof Vela>
 
 const ranges: Record<Range, number> = { '1H': 60, '4H': 120, '1D': 240, '1W': 336, '1M': 480, ALL: 720 }
-const money = (value: number) => `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+const BAR_INTERVAL_SECONDS = 60
+const RIGHT_PADDING_BARS = 6
+const money = (value: number) => `${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 function toVelaBars(candles: Candle[]) {
   return candles.map((candle) => ({
@@ -18,6 +20,15 @@ function toVelaBars(candles: Candle[]) {
     close: candle.close,
     volume: candle.volume,
   }))
+}
+
+function withRightPadding(candles: Candle[], visibleRange?: { from: number; to: number } | null) {
+  const paddedTo = candles[candles.length - 1].timestamp + BAR_INTERVAL_SECONDS * RIGHT_PADDING_BARS
+  if (!visibleRange) return { from: candles[0].timestamp, to: paddedTo }
+
+  const span = visibleRange.to - visibleRange.from
+  const to = Math.max(visibleRange.to, paddedTo)
+  return { from: to - span, to }
 }
 
 function App() {
@@ -49,10 +60,8 @@ function App() {
               timeframe: '1',
               ...(visibleRange ? { visibleRange } : {}),
             })
-            if (visibleRange) {
-              await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
-              chart.current.setVisibleRange(visibleRange)
-            }
+            await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+            chart.current.setVisibleRange(withRightPadding(nextCandles, visibleRange))
             chartHasData.current = true
           }
         }
@@ -130,7 +139,7 @@ function App() {
   const resetView = () => {
     const bars = serverCandles
     if (!bars?.length) return
-    chart.current?.setVisibleRange({ from: bars[0].timestamp, to: bars[bars.length - 1].timestamp })
+    chart.current?.setVisibleRange(withRightPadding(bars))
   }
   const toggleFullscreen = async () => {
     if (document.fullscreenElement) await document.exitFullscreen()
