@@ -60,8 +60,10 @@ function App() {
               timeframe: '1',
               ...(visibleRange ? { visibleRange } : {}),
             })
-            await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
-            chart.current.setVisibleRange(withRightPadding(nextCandles, visibleRange))
+            if (!chartHasData.current) {
+              await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+              chart.current.setVisibleRange(withRightPadding(nextCandles, visibleRange))
+            }
             chartHasData.current = true
           }
         }
@@ -71,6 +73,23 @@ function App() {
         chartUpdateActive.current = false
       }
     })()
+  }
+
+  const updateLiveCandle = (candle: Candle) => {
+    const currentChart = chart.current
+    if (!currentChart || !chartHasData.current) return false
+
+    // Vela currently exposes updateBar on the renderer, but not through the public
+    // RendererControl facade. Use that existing incremental path for the forming bar;
+    // setMarket remains the fallback for a new bar or older Vela builds.
+    const internalChart = currentChart as unknown as {
+      orchestrator?: { renderer?: { updateBar?: (bar: ReturnType<typeof toVelaBars>[number]) => void } }
+    }
+    const updateBar = internalChart.orchestrator?.renderer?.updateBar
+    if (!updateBar) return false
+
+    updateBar.call(internalChart.orchestrator?.renderer, toVelaBars([candle])[0])
+    return true
   }
 
   useEffect(() => {
@@ -120,12 +139,18 @@ function App() {
     stream.onmessage = (event) => {
       const candle = JSON.parse(event.data) as Candle
       if (!active) return
-      const nextCandles = [...(serverCandlesRef.current ?? []).filter((item) => item.timestamp !== candle.timestamp), candle]
+      const previousCandles = serverCandlesRef.current ?? []
+      const previousCandle = previousCandles.find((item) => item.timestamp === candle.timestamp)
+      const nextCandles = [...previousCandles.filter((item) => item.timestamp !== candle.timestamp), candle]
         .sort((first, second) => first.timestamp - second.timestamp)
         .slice(-ranges[range])
       serverCandlesRef.current = nextCandles
       setServerCandles(nextCandles)
-      if (historyReady.current) requestChartData(nextCandles)
+
+      if (historyReady.current) {
+        const onlyLiveCandleChanged = previousCandle !== undefined && nextCandles[nextCandles.length - 1]?.timestamp === candle.timestamp
+        if (!onlyLiveCandleChanged || !updateLiveCandle(candle)) requestChartData(nextCandles)
+      }
     }
     return () => { active = false; stream.close() }
   }, [range])
