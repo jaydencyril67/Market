@@ -63,6 +63,7 @@ function App() {
   const [historyHasMore, setHistoryHasMore] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [volumeVisible, setVolumeVisible] = useState(true)
+  const [activeIndicators, setActiveIndicators] = useState<string[]>([])
   const chartPanel = useRef<HTMLElement | null>(null)
   const chartElement = useRef<HTMLDivElement | null>(null)
   const chart = useRef<VelaChart | null>(null)
@@ -131,6 +132,7 @@ function App() {
     })
     chart.current.renderer.set('countdown', false)
     chart.current.renderer.applyConfig({ series: { spacing: 0.65 } })
+    addChartIndicator('volume')
     setChartReady(true)
     return () => {
       chart.current?.destroy()
@@ -244,30 +246,54 @@ function App() {
     setServerCandles(null)
   }
 
-  const toggleVolume = () => {
-    const currentChart = chart.current
-    if (!currentChart) return
-    const chartControls = currentChart as unknown as {
-      indicators: () => Array<{ type: string; remove: () => void }>
-      addNativeIndicator: (type: string) => void
-    }
-    const handles = chartControls.indicators().filter((indicator) => indicator.type === 'volume')
-    if (volumeVisible) {
-      handles.forEach((indicator) => indicator.remove())
-    } else {
-      chartControls.addNativeIndicator('volume')
-    }
-    setVolumeVisible(!volumeVisible)
+  type ChartIndicator = { type: string; remove?: () => void }
+  type ChartControls = VelaChart & {
+    indicators?: () => ChartIndicator[]
+    addNativeIndicator?: (type: string) => void
+    addIndicator?: (type: string) => void
+    drawings?: { showToolbar?: () => void }
+    drawingTools?: { showToolbar?: () => void }
   }
 
-  const addIndicator = (type: string) => {
-    const currentChart = chart.current as (VelaChart & { addNativeIndicator?: (name: string) => void }) | null
-    currentChart?.addNativeIndicator?.(type)
+  const getChartControls = () => chart.current as ChartControls | null
+
+  const getIndicators = (type: string) => {
+    const handles = getChartControls()?.indicators?.() ?? []
+    return handles.filter((indicator) => indicator.type === type)
+  }
+
+  const addChartIndicator = (type: string) => {
+    const controls = getChartControls()
+    const add = controls?.addNativeIndicator ?? controls?.addIndicator
+    if (!add) return false
+    add.call(controls, type)
+    return true
+  }
+
+  const toggleVolume = () => {
+    const handles = getIndicators('volume')
+    if (volumeVisible) {
+      handles.forEach((indicator) => indicator.remove?.())
+      setVolumeVisible(false)
+      return
+    }
+    if (addChartIndicator('volume')) setVolumeVisible(true)
+  }
+
+  const toggleIndicator = (type: string) => {
+    const handles = getIndicators(type)
+    if (handles.length) {
+      handles.forEach((indicator) => indicator.remove?.())
+      setActiveIndicators((current) => current.filter((item) => item !== type))
+      return
+    }
+    if (addChartIndicator(type)) setActiveIndicators((current) => [...current, type])
   }
 
   const showDrawingTools = () => {
-    const currentChart = chart.current as (VelaChart & { drawings?: { showToolbar: () => void } }) | null
-    currentChart?.drawings?.showToolbar()
+    const controls = getChartControls()
+    const showToolbar = controls?.drawings?.showToolbar ?? controls?.drawingTools?.showToolbar
+    showToolbar?.call(controls?.drawings ?? controls?.drawingTools)
   }
 
   const selectTimeframe = (nextTimeframe: Timeframe) => {
@@ -281,7 +307,7 @@ function App() {
   }
 
   return <main className="market-chart"><section className="chart-panel" ref={chartPanel}>
-    <div className="chart-topbar"><div><strong>MKT/USD</strong><span className={`market-status ${connectionStatus}`}>● {connectionStatus.toUpperCase()}</span></div><div className="chart-actions"><button onClick={resetView}>Reset</button><button onClick={toggleVolume} className={volumeVisible ? 'active' : ''}>Volume</button><button onClick={() => addIndicator('sma')}>SMA</button><button onClick={() => addIndicator('rsi')}>RSI</button><button onClick={showDrawingTools}>Draw</button><button aria-label="Chart settings">⚙</button><button aria-label="Toggle fullscreen" onClick={() => void toggleFullscreen()}>⛶</button></div></div>
+    <div className="chart-topbar"><div><strong>MKT/USD</strong><span className={`market-status ${connectionStatus}`}>● {connectionStatus.toUpperCase()}</span></div><div className="chart-actions"><button onClick={resetView}>Reset</button><button onClick={toggleVolume} className={volumeVisible ? 'active' : ''}>Volume</button><button onClick={() => toggleIndicator('sma')} className={activeIndicators.includes('sma') ? 'active' : ''}>SMA</button><button onClick={() => toggleIndicator('rsi')} className={activeIndicators.includes('rsi') ? 'active' : ''}>RSI</button><button onClick={showDrawingTools}>Draw</button><button aria-label="Chart settings">⚙</button><button aria-label="Toggle fullscreen" onClick={() => void toggleFullscreen()}>⛶</button></div></div>
     <div className="toolbar"><div className="control-groups"><div className="control-group"><span className="control-label">Range</span><div className="range-tabs">{(Object.keys(ranges) as Range[]).map((item) => <button className={item === range ? 'selected' : ''} onClick={() => selectRange(item)} key={item}>{item}</button>)}</div></div><div className="control-group"><span className="control-label">Interval</span><div className="range-tabs">{(['1m', '5m', '15m', '1h', '4h', '1D'] as Timeframe[]).map((item) => <button className={item === timeframe ? 'selected' : ''} onClick={() => selectTimeframe(item)} key={item}>{item}</button>)}</div></div></div><div className="chart-tools"><button className="load-history" onClick={() => void loadOlderHistory()} disabled={!historyHasMore || loadingHistory}>{loadingHistory ? 'Loading…' : historyHasMore ? 'Load older' : 'History loaded'}</button><span className={change >= 0 ? 'price-up' : 'price-down'}>{latest ? money(latest) : '—'} {latest ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : ''}</span><span className="chart-mode">Candles · {timeframe}</span></div></div>
     <div className={`chart-wrap${loading ? ' is-loading' : ''}`}><div ref={chartElement} className="vela-chart" role="img" aria-label="Live market candlestick chart" />{loading && <div className="chart-loading"><span className="loading-spinner" />Loading market data…</div>}{!loading && !candles.length && <div className="chart-loading">No market data available</div>}</div>
   </section></main>
