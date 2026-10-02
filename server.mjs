@@ -11,10 +11,13 @@ const ranges = { '1H': 60, '4H': 240, '1D': 1_440, '1W': 10_080, '1M': 43_200, A
 const candles = []
 const streamClients = new Set()
 const candleInterval = 60_000
+const generationInterval = 2_000
+const tickFraction = generationInterval / candleInterval
 let price = 246
 let phase = 0
 let volatility = 0.006
 let trend = 0.00015
+let momentum = 0
 
 function randomNormal() {
   const first = Math.max(Number.EPSILON, Math.random())
@@ -25,14 +28,21 @@ function nextCandle(timestamp = Math.floor(Date.now() / candleInterval) * candle
   const open = price
   const shock = randomNormal()
   const cycle = Math.sin(phase / 31) * 0.00035 + Math.cos(phase / 83) * 0.0002
-  volatility = Math.min(0.022, Math.max(0.0025, volatility * 0.96 + Math.abs(shock) * 0.0007 + (Math.abs(shock) > 2.1 ? 0.012 : 0)))
-  trend = trend * 0.97 + (Math.random() - 0.5) * 0.00035 + cycle
-  const returnRate = trend + shock * volatility
+  // Volatility and drift are candle-level values. Scale them to the two-second
+  // update interval so the live price travels through the candle instead of
+  // jumping by a whole candle's return on every tick.
+  volatility = Math.min(0.022, Math.max(0.0025, volatility * 0.995 + Math.abs(shock) * 0.00004 + (Math.abs(shock) > 2.6 ? 0.001 : 0)))
+  trend = trend * 0.995 + (Math.random() - 0.5) * 0.000035 + cycle * tickFraction
+  // Correlate adjacent ticks so the path flows in the current direction instead
+  // of looking like thirty unrelated jumps inside each one-minute candle.
+  const innovation = shock * volatility * Math.sqrt(tickFraction)
+  momentum = momentum * 0.82 + innovation * 0.35
+  const returnRate = Math.max(-0.012, Math.min(0.012, trend * tickFraction + momentum + innovation * 0.65))
   const close = Math.max(1, open * Math.exp(returnRate))
-  const spread = Math.max(open, close) * volatility * (0.7 + Math.random() * 1.2)
+  const spread = Math.max(open, close) * volatility * Math.sqrt(tickFraction) * (0.25 + Math.random() * 0.55)
   const high = Number((Math.max(open, close) + spread * (0.25 + Math.random() * 0.75)).toFixed(4))
   const low = Number(Math.max(0.01, Math.min(open, close) - spread * (0.25 + Math.random() * 0.75)).toFixed(4))
-  const volume = Math.round(8500 * (1 + Math.abs(returnRate) * 45) * (0.65 + Math.random() * 0.7))
+  const volume = Math.round(8500 * tickFraction * (1 + Math.abs(returnRate) * 45) * (0.65 + Math.random() * 0.7))
   const current = candles[candles.length - 1]
   const candle = current?.timestamp === timestamp
     ? {
@@ -83,7 +93,7 @@ async function generateAndPersist() {
   const candle = nextCandle()
   try { await saveCandles([candle]) } catch (error) { console.error('Candle persistence failed:', error.message) }
 }
-setInterval(generateAndPersist, 2_000)
+setInterval(generateAndPersist, generationInterval)
 
 function sendJson(response, payload, status = 200) {
   response.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' })
