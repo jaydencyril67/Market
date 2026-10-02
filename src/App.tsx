@@ -258,7 +258,7 @@ function App() {
   const getChartControls = () => chart.current as ChartControls | null
 
   const getIndicators = (type: string) => {
-    const handles = getChartControls()?.indicators?.() ?? []
+    const handles = (getChartControls()?.indicators?.() ?? []) as unknown as ChartIndicator[]
     return handles.filter((indicator) => indicator.type === type)
   }
 
