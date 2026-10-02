@@ -13,6 +13,8 @@ const streamClients = new Set()
 const candleInterval = 60_000
 const generationInterval = 2_000
 const tickFraction = generationInterval / candleInterval
+const priceTick = 0.01
+const maxTickMove = 0.02
 let price = 246
 let phase = 0
 let volatility = 0.006
@@ -22,6 +24,10 @@ let momentum = 0
 function randomNormal() {
   const first = Math.max(Number.EPSILON, Math.random())
   return Math.sqrt(-2 * Math.log(first)) * Math.cos(Math.PI * 2 * Math.random())
+}
+
+function roundPrice(value) {
+  return Math.round(value / priceTick) * priceTick
 }
 
 function nextCandle(timestamp = Math.floor(Date.now() / candleInterval) * candleInterval) {
@@ -38,24 +44,26 @@ function nextCandle(timestamp = Math.floor(Date.now() / candleInterval) * candle
   const innovation = shock * volatility * Math.sqrt(tickFraction)
   momentum = momentum * 0.82 + innovation * 0.35
   const returnRate = Math.max(-0.012, Math.min(0.012, trend * tickFraction + momentum + innovation * 0.65))
-  const close = Math.max(1, open * Math.exp(returnRate))
-  const spread = Math.max(open, close) * volatility * Math.sqrt(tickFraction) * (0.25 + Math.random() * 0.55)
-  const high = Number((Math.max(open, close) + spread * (0.25 + Math.random() * 0.75)).toFixed(4))
-  const low = Number(Math.max(0.01, Math.min(open, close) - spread * (0.25 + Math.random() * 0.75)).toFixed(4))
+  const requestedMove = open * (Math.exp(returnRate) - 1)
+  const move = Math.max(-maxTickMove, Math.min(maxTickMove, requestedMove))
+  const close = Math.max(priceTick, roundPrice(open + move))
+  const spread = Math.min(maxTickMove, Math.max(priceTick, Math.max(open, close) * volatility * Math.sqrt(tickFraction) * (0.25 + Math.random() * 0.55)))
+  const high = roundPrice(Math.max(open, close) + spread * (0.25 + Math.random() * 0.75))
+  const low = Math.max(priceTick, roundPrice(Math.min(open, close) - spread * (0.25 + Math.random() * 0.75)))
   const volume = Math.round(8500 * tickFraction * (1 + Math.abs(returnRate) * 45) * (0.65 + Math.random() * 0.7))
   const current = candles[candles.length - 1]
   const candle = current?.timestamp === timestamp
     ? {
         ...current,
-        close: Number(close.toFixed(4)),
+        close,
         high: Math.max(current.high, high),
         low: Math.min(current.low, low),
         volume: current.volume + volume,
       }
     : {
         timestamp,
-        open: Number(open.toFixed(4)),
-        close: Number(close.toFixed(4)),
+        open: roundPrice(open),
+        close,
         high,
         low,
         volume,
