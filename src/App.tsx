@@ -7,7 +7,7 @@ type Range = '1H' | '4H' | '1D' | '1W' | '1M' | 'ALL'
 type VelaChart = InstanceType<typeof Vela>
 
 const ranges: Record<Range, number> = { '1H': 60, '4H': 120, '1D': 240, '1W': 336, '1M': 480, ALL: 720 }
-const BAR_INTERVAL_SECONDS = 60
+const BAR_INTERVAL_MS = 60_000
 const RIGHT_PADDING_BARS = 6
 const money = (value: number) => `${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
@@ -23,7 +23,7 @@ function toVelaBars(candles: Candle[]) {
 }
 
 function withRightPadding(candles: Candle[], visibleRange?: { from: number; to: number } | null) {
-  const paddedTo = candles[candles.length - 1].timestamp + BAR_INTERVAL_SECONDS * RIGHT_PADDING_BARS
+  const paddedTo = candles[candles.length - 1].timestamp + BAR_INTERVAL_MS * RIGHT_PADDING_BARS
   if (!visibleRange) return { from: candles[0].timestamp, to: paddedTo }
 
   const span = visibleRange.to - visibleRange.from
