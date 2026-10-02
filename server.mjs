@@ -7,11 +7,10 @@ import { connectDatabase, isDatabaseConfigured, readCandles, saveCandles } from 
 const port = Number(process.env.PORT || 10000)
 const root = fileURLToPath(new URL('.', import.meta.url))
 // API history windows for the app's 1-minute crypto candles.
-const ranges = { '1H': 60, '4H': 240, '1D': 1_440, '1W': 10_080, '1M': 43_200, ALL: 43_200 }
+const ranges = { '1H': 60, '4H': 240, '1D': 1_440, '1W': 10_080, '1M': 43_200, ALL: null }
 const candles = []
 const streamClients = new Set()
 const candleInterval = 60_000
-const maxCandles = 43_200
 let price = 246
 let phase = 0
 let volatility = 0.006
@@ -55,7 +54,6 @@ function nextCandle(timestamp = Math.floor(Date.now() / candleInterval) * candle
   phase += 1
   if (current?.timestamp === timestamp) candles[candles.length - 1] = candle
   else candles.push(candle)
-  if (candles.length > maxCandles) candles.shift()
   const message = `data: ${JSON.stringify(candle)}\n\n`
   for (const client of streamClients) client.write(message)
   return candle
@@ -64,7 +62,7 @@ function nextCandle(timestamp = Math.floor(Date.now() / candleInterval) * candle
 async function initializeMarket() {
   if (await connectDatabase()) {
     try {
-      const storedCandles = await readCandles(maxCandles)
+      const storedCandles = await readCandles()
       if (storedCandles?.length) {
         candles.push(...storedCandles)
         price = storedCandles[storedCandles.length - 1].close
@@ -93,8 +91,9 @@ function sendJson(response, payload, status = 200) {
 }
 
 function marketPayload(range) {
-  const count = ranges[range] || ranges['1D']
-  return { symbol: 'MKT/USD', interval: '1m', persistent: isDatabaseConfigured(), candles: candles.slice(-count), updatedAt: new Date().toISOString() }
+  const count = ranges[range] ?? ranges['1D']
+  const history = count === null ? candles : candles.slice(-count)
+  return { symbol: 'MKT/USD', interval: '1m', persistent: isDatabaseConfigured(), candles: history, updatedAt: new Date().toISOString() }
 }
 
 async function serveStatic(request, response) {

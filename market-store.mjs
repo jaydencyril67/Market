@@ -64,7 +64,8 @@ export async function readCandles(limit, before) {
   if (!(await ensureCollection())) return null
   const query = { symbol: 'MKT/USD', interval: '1m' }
   if (before) query.timestamp = { $lt: before }
-  const documents = await collection.find(query).sort({ timestamp: -1 }).limit(limit).toArray()
+  const cursor = collection.find(query).sort({ timestamp: -1 })
+  const documents = await (limit == null ? cursor.toArray() : cursor.limit(limit).toArray())
   return documents.reverse().map(({ _id, symbol, interval, ...candle }) => candle)
 }
 
