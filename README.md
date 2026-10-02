@@ -1,6 +1,6 @@
 # Market
 
-Hybrid React + Node market chart with an in-house generated KRN/USD price feed.
+Hybrid React + Node market chart with an in-house generated KRN/USDT price feed.
 
 ## Local development
 
@@ -19,7 +19,7 @@ The backend exposes:
 - `GET /api/market?range=1D&before=TIMESTAMP` for older candles
 - `GET /api/market/stream` for Server-Sent Events live candles
 
-The backend owns the generated KRN/USD price feed. The chart loads persisted history, receives live candles over SSE, and falls back to local data only when the API is unavailable.
+The backend owns the generated KRN/USDT price feed. The chart loads persisted history, receives live candles over SSE, and falls back to local data only when the API is unavailable.
 
 ## MongoDB production setup
 

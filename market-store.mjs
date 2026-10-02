@@ -53,8 +53,8 @@ export async function saveCandles(candles) {
   if (!candles.length || !(await ensureCollection())) return
   await collection.bulkWrite(candles.map((candle) => ({
     updateOne: {
-      filter: { symbol: 'KRN/USD', interval: '1m', timestamp: candle.timestamp },
-      update: { $set: { ...candle, symbol: 'KRN/USD', interval: '1m' } },
+      filter: { symbol: 'KRN/USDT', interval: '1m', timestamp: candle.timestamp },
+      update: { $set: { ...candle, symbol: 'KRN/USDT', interval: '1m' } },
       upsert: true,
     },
   })), { ordered: false })
@@ -62,7 +62,7 @@ export async function saveCandles(candles) {
 
 export async function readCandles(limit, before) {
   if (!(await ensureCollection())) return null
-  const query = { symbol: 'KRN/USD', interval: '1m' }
+  const query = { symbol: 'KRN/USDT', interval: '1m' }
   if (before) query.timestamp = { $lt: before }
   const cursor = collection.find(query).sort({ timestamp: -1 })
   const documents = await (limit == null ? cursor.toArray() : cursor.limit(limit).toArray())
