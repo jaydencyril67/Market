@@ -132,7 +132,7 @@ function App() {
     })
     chart.current.renderer.set('countdown', false)
     chart.current.renderer.applyConfig({ series: { spacing: 0.65 } })
-    addChartIndicator('volume', { inputs: { heightPct: 10 } })
+    addChartIndicator('volume', { inputs: { heightPct: 8 } })
     setChartReady(true)
     return () => {
       chart.current?.destroy()
@@ -277,7 +277,7 @@ function App() {
       setVolumeVisible(false)
       return
     }
-    if (addChartIndicator('volume', { inputs: { heightPct: 10 } })) setVolumeVisible(true)
+    if (addChartIndicator('volume', { inputs: { heightPct: 8 } })) setVolumeVisible(true)
   }
 
   const toggleIndicator = (type: string) => {
