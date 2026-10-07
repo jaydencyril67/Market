@@ -8,6 +8,7 @@ import {patterns} from "./language/patterns";
 import {extractEntities} from "./language/entities";
 import {resolveReferences} from "./language/references";
 import {splitRequests,decide} from "./reasoning/decision";
+import {buildActionPlan} from "./reasoning/planner";
 
 export const normalize=(input:string)=>input.toLowerCase().normalize("NFKD").replace(/[\\u0300-\\u036f]/g,"").replace(/[^a-z0-9\\s-]/g," ").replace(/\\s+/g," ").trim();
 const variants=(value:string)=>{const n=normalize(value);const out=new Set([n]);for(const [key,items] of Object.entries(synonyms)){if(items.includes(n)||key===n)for(const item of items)out.add(normalize(item));}return [...out];};
@@ -23,8 +24,8 @@ export function think(input:string,context:BrainContext={}):BrainResult{
    const normalizedPart=normalize(part); const rankedPart=intents.map(intent=>({intent,confidence:score(part,intent)})).sort((a,b)=>b.confidence-a.confidence); const bestPart=rankedPart[0]; const entitiesPart=extractEntities(part,context.entities); const refsPart=resolveReferences(part,context,entitiesPart);
    return {intent:bestPart?.intent.id??"",confidence:bestPart?.confidence??0,input:part,action:bestPart?.intent.action??{type:"none"},references:refsPart};
   });
-  const decision=decide(steps,intents);
-  if(decision.mode==="clarify") return {intent:null,confidence:Math.min(...steps.map(s=>s.confidence)),response:"I understood multiple requests, but one part is not clear enough yet. Tell me which action you want first.",action:{type:"none"},normalized:normalize(input),alternatives:steps.map(s=>s.intent).filter(Boolean),needsClarification:true,entities:context.entities??{},context:{...context,decision}};
+  const decision=decide(steps,intents);\n  const actionPlan=buildActionPlan(steps,steps.flatMap(s=>s.references));\n  decision.reason += " Action plan: "+actionPlan.status+". ";
+  if(decision.mode==="clarify") return {intent:null,confidence:Math.min(...steps.map(s=>s.confidence)),response:"I understood multiple requests, but one part is not clear enough yet. Tell me which action you want first.",action:{type:"none"},normalized:normalize(input),alternatives:steps.map(s=>s.intent).filter(Boolean),needsClarification:true,entities:context.entities??{},context:{...context,decision,history:[...(context.history??[]),normalize(input)].slice(-10)}};
   const first=steps[0];
   const response=responses[first.intent]??responses.fallback;
   return {intent:first.intent,confidence:first.confidence,response:response[0],action:first.action,normalized:normalize(input),alternatives:steps.map(s=>s.intent),needsClarification:false,entities:context.entities??{},context:{...context,lastIntent:first.intent,lastTarget:first.action.type==="navigate"?first.action.target:context.lastTarget,history:[...(context.history??[]),normalize(input)].slice(-10),decision}};
