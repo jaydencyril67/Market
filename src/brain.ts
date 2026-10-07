@@ -2,6 +2,8 @@ import {intents} from "./intents/core";
 import {responses} from "./responses/core";
 import {BrainContext,BrainResult,Intent} from "./types";
 import {synonyms} from "./language/synonyms";
+import {knowledge} from "./knowledge/app";
+import {findKnowledge} from "./knowledge/matcher";
 
 export const normalize=(input:string)=>input.toLowerCase().normalize("NFKD").replace(/[\\u0300-\\u036f]/g,"").replace(/[^a-z0-9\\s-]/g," ").replace(/\\s+/g," ").trim();
 const variants=(value:string)=>{const n=normalize(value);const out=new Set([n]);for(const [key,items] of Object.entries(synonyms)){if(items.includes(n)||key===n)for(const item of items)out.add(normalize(item));}return [...out];};
@@ -9,7 +11,7 @@ const tokenSet=(text:string)=>new Set(normalize(text).split(" ").filter(Boolean)
 const distance=(a:string,b:string)=>{const x=normalize(a),y=normalize(b);const d=Array.from({length:y.length+1},(_,i)=>i);for(let i=1;i<=x.length;i++){let prev=d[0];d[0]=i;for(let j=1;j<=y.length;j++){const cur=d[j];d[j]=Math.min(d[j]+1,d[j-1]+1,prev+(x[i-1]===y[j-1]?0:1));prev=cur;}}return d[y.length];};
 function typoBoost(text:string,forms:string[]){let boost=0;for(const word of text.split(" ")){if(word.length<4)continue;for(const form of forms){if(form.includes(" ")||form===word)continue;const d=distance(word,form);if(d===1)boost=Math.max(boost,.10);else if(d===2&&word.length>=6)boost=Math.max(boost,.05);}}return boost;}
 function score(input:string,intent:Intent){const text=normalize(input);if(!text)return 0;let score=0;for(const p of intent.phrases){const n=normalize(p);if(text===n)score+=.85;else if(text.includes(n))score+=.58;}for(const k of intent.keywords){const forms=variants(k);if(forms.some(v=>text.includes(v)))score+=.18;score+=typoBoost(text,forms);}for(const k of intent.keywords)if(tokenSet(text).has(normalize(k)))score+=.08;return Math.min(.99,score+(intent.priority??0));}
-export function think(input:string,context:BrainContext={}):BrainResult{const normalized=normalize(input);const ranked=intents.map(intent=>({intent,confidence:score(input,intent)})).sort((a,b)=>b.confidence-a.confidence);let best=ranked[0];
+export function think(input:string,context:BrainContext={}):BrainResult{const normalized=normalize(input);const knowledgeHit=findKnowledge(input,knowledge);if(knowledgeHit&&knowledgeHit.score>=.55){const nextContext={...context,history:[...(context.history??[]),normalized].slice(-10),pendingIntent:null};return{intent:`knowledge:${knowledgeHit.entry.id}`,confidence:knowledgeHit.score,response:knowledgeHit.entry.answer,action:{type:"none"},normalized,alternatives:[],needsClarification:false,context:nextContext};}const ranked=intents.map(intent=>({intent,confidence:score(input,intent)})).sort((a,b)=>b.confidence-a.confidence);let best=ranked[0];
 if(context.lastTarget==="my-bots" && /\\b(status|activity|doing|running|active)\\b/.test(normalized)){const candidate=intents.find(x=>x.id==="bot_status");if(candidate)best={intent:candidate,confidence:Math.max(best?.confidence??0,.82)};}
 if(context.pendingIntent){const pending=intents.find(x=>x.id===context.pendingIntent);if(pending){const pendingScore=score(input,pending);if(pendingScore>.15)best={intent:pending,confidence:Math.min(.99,pendingScore+.15)};}}
 if(!best||best.confidence<.30)return{intent:null,confidence:best?.confidence??0,response:responses.fallback[0],action:{type:"none"},normalized,alternatives:ranked.slice(0,3).filter(x=>x.confidence>0).map(x=>x.intent.id),needsClarification:false,context};
