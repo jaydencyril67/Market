@@ -8,3 +8,6 @@ console.log("TURN 2",JSON.stringify(session.ask("is it running?")));
 console.log("TURN 3",JSON.stringify(session.ask("take me there")));
 session.reset();
 console.log("RESET",JSON.stringify(session.ask("is it running?")));
+
+const reasoningTests=["open my bots and check my bot","show my portfolio and then open settings","deposit and show my balance","open my bots and what is the weather"];
+for(const input of reasoningTests){const result=think(input);console.log("REASONING",JSON.stringify({input,intent:result.intent,confidence:result.confidence,decision:result.context.decision,clarify:result.needsClarification}));}
