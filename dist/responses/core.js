@@ -324,6 +324,30 @@ exports.responses = {
         "Give me the question or action and I’ll take it from there.",
         "Alright — what are we trying to get done?"
     ],
+    context_unclear: [
+        "I think you’re referring to something from the last step, but I can’t tell which part yet.",
+        "I have some context, but not enough to safely connect that to the previous request.",
+        "I can follow that if you point me to the thing you mean.",
+        "I’m missing the reference there — tell me what ‘that’ refers to and I’ll continue.",
+        "I’ve got the recent context, but I don’t want to assume what you mean.",
+        "That sounds related to what we just did. Which part should I use?",
+        "I’m not sure what you’re referring back to. Give me the action or item and I’ll pick it up.",
+        "I can continue from the previous step, but I need to know which part you mean.",
+        "I caught the connection to the earlier request, but the exact reference is unclear.",
+        "Point me at the part you mean and I’ll continue from there."
+    ],
+    context_fallback: [
+        "I don’t have enough context to safely act on that yet.",
+        "I’m missing the detail that would tell me what you mean.",
+        "I can work with that, but I need the specific page, item, or action.",
+        "I don’t want to guess at the missing context. Give me the part you’re referring to.",
+        "There’s not enough context for me to choose the right action.",
+        "Give me the thing you mean and I’ll take it from there.",
+        "I need one more piece of context before I can handle that properly.",
+        "I can continue once I know which item or action you mean.",
+        "I’m missing the reference needed to make that request actionable.",
+        "Tell me what you’re referring to and I’ll continue from there."
+    ],
     unclear: [
         "I’m not quite sure which part you mean. Can you say it another way?",
         "I need a little more detail to choose the right action.",
