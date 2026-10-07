@@ -17,3 +17,6 @@ for(const input of planningTests){const result=think(input);console.log("PLAN",J
 
 const executionTests=["how do i withdraw","create a bot","open my bots and check bot abc123"];
 for(const input of executionTests){const result=think(input);console.log("EXECUTION",JSON.stringify({input,decision:result.context.decision,entities:result.entities}));}
+
+import {executeCommand} from "./execution/runtime";
+(async()=>{const safe={id:"safe-1",intent:"portfolio",action:{type:"navigate" as const,target:"portfolio"},parameters:{},risk:"low" as const,requiresConfirmation:false,status:"ready" as const};const sensitive={...safe,id:"withdraw-1",intent:"withdraw",risk:"high" as const,requiresConfirmation:true};console.log("RUNTIME SAFE",await executeCommand(safe,async cmd=>({commandId:cmd.id,status:"executed",message:"Executor accepted command."})));console.log("RUNTIME BLOCKED",await executeCommand(sensitive,async cmd=>({commandId:cmd.id,status:"executed",message:"Executor accepted command."})));console.log("RUNTIME CONFIRMED",await executeCommand(sensitive,async cmd=>({commandId:cmd.id,status:"executed",message:"Executor accepted command."}),true));})();
