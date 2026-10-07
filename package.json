@@ -1,27 +1,25 @@
 {
-  "name": "market",
+  "name": "kingshall-3d-game",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "start": "node server.mjs",
     "build": "tsc -b && vite build",
-    "preview": "vite preview",
-    "build:server": "npm run build"
+    "preview": "vite preview"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "latest",
-    "vite": "latest",
-    "typescript": "latest",
     "react": "latest",
     "react-dom": "latest",
+    "three": "latest",
     "lucide-react": "latest",
-    "@luxalgo/vela": "latest",
-    "mongodb": "latest"
+    "vite": "latest"
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "latest",
+    "typescript": "latest",
     "@types/react": "latest",
-    "@types/react-dom": "latest"
+    "@types/react-dom": "latest",
+    "@types/three": "latest"
   }
 }
