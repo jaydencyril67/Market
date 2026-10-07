@@ -1,0 +1,4 @@
+import {KnowledgeEntry} from "./app";
+import {normalize} from "../brain";
+const distance=(a:string,b:string)=>{const x=normalize(a),y=normalize(b);const d=Array.from({length:y.length+1},(_,i)=>i);for(let i=1;i<=x.length;i++){let p=d[0];d[0]=i;for(let j=1;j<=y.length;j++){const q=d[j];d[j]=Math.min(d[j]+1,d[j-1]+1,p+(x[i-1]===y[j-1]?0:1));p=q;}}return d[y.length];};
+export function findKnowledge(input:string,entries:KnowledgeEntry[]){const text=normalize(input);let best:{entry:KnowledgeEntry;score:number}|null=null;for(const entry of entries){let score=0;for(const q of entry.questions){const n=normalize(q);if(text===n)score+=.9;else if(text.includes(n))score+=.65;else if(distance(text,n)<=2)score+=.25;}for(const k of entry.keywords)if(text.includes(normalize(k)))score+=.12;score=Math.min(.98,score);if(!best||score>best.score)best={entry,score};}return best&&best.score>=.38?best:null;}
