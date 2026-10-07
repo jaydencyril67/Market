@@ -12,3 +12,6 @@ export {compileExecution} from "./reasoning/executor";
 
 export {executeCommand,executePlan} from "./execution/runtime";
 export type {Executor} from "./execution/runtime";
+
+export {crybotsSource,verifiedFacts} from "./knowledge/crybotsSource";
+export {findVerifiedKnowledge} from "./knowledge/matcher";
