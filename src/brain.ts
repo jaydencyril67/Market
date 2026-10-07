@@ -11,7 +11,6 @@ import {splitRequests,decide} from "./reasoning/decision";
 import {buildActionPlan} from "./reasoning/planner";
 import {compileExecution} from "./reasoning/executor";
 export const normalize=(input:string)=>input.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9\s-]/g," ").replace(/\s+/g," ").trim();
-export const normalize=(input:string)=>input.toLowerCase().normalize("NFKD").replace(//[\u0300-\u036f]//g,"").replace(/[^a-z0-9\s-]/g," ").replace(/\s+/g," ").trim();
 const variants=(value:string)=>{const n=normalize(value);const out=new Set([n]);for(const [key,items] of Object.entries(synonyms)){if(items.includes(n)||key===n)for(const item of items)out.add(normalize(item));}return [...out];};
 const tokenSet=(text:string)=>new Set(normalize(text).split(" ").filter(Boolean));
 const distance=(a:string,b:string)=>{const x=normalize(a),y=normalize(b);const d=Array.from({length:y.length+1},(_,i)=>i);for(let i=1;i<=x.length;i++){let prev=d[0];d[0]=i;for(let j=1;j<=y.length;j++){const cur=d[j];d[j]=Math.min(d[j]+1,d[j-1]+1,prev+(x[i-1]===y[j-1]?0:1));prev=cur;}}return d[y.length];};
