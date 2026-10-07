@@ -9,3 +9,6 @@ export {splitRequests,decide,isCompatible} from "./reasoning/decision";
 export {buildActionPlan} from "./reasoning/planner";
 
 export {compileExecution} from "./reasoning/executor";
+
+export {executeCommand,executePlan} from "./execution/runtime";
+export type {Executor} from "./execution/runtime";
