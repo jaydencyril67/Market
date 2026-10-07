@@ -11,7 +11,7 @@ import {splitRequests,decide} from "./reasoning/decision";
 import {buildActionPlan} from "./reasoning/planner";
 import {compileExecution} from "./reasoning/executor";
 
-export const normalize=(input:string)=>input.toLowerCase().normalize("NFKD").replace(/[\\u0300-\\u036f]/g,"").replace(/[^a-z0-9\\s-]/g," ").replace(/\\s+/g," ").trim();
+export const normalize=(input:string)=>input.toLowerCase().normalize("NFKD").replace(//[\u0300-\u036f]//g,"").replace(/[^a-z0-9\s-]/g," ").replace(/\s+/g," ").trim();
 const variants=(value:string)=>{const n=normalize(value);const out=new Set([n]);for(const [key,items] of Object.entries(synonyms)){if(items.includes(n)||key===n)for(const item of items)out.add(normalize(item));}return [...out];};
 const tokenSet=(text:string)=>new Set(normalize(text).split(" ").filter(Boolean));
 const distance=(a:string,b:string)=>{const x=normalize(a),y=normalize(b);const d=Array.from({length:y.length+1},(_,i)=>i);for(let i=1;i<=x.length;i++){let prev=d[0];d[0]=i;for(let j=1;j<=y.length;j++){const cur=d[j];d[j]=Math.min(d[j]+1,d[j-1]+1,prev+(x[i-1]===y[j-1]?0:1));prev=cur;}}return d[y.length];};
@@ -25,12 +25,21 @@ export function think(input:string,context:BrainContext={}):BrainResult{
    const normalizedPart=normalize(part); const rankedPart=intents.map(intent=>({intent,confidence:score(part,intent)})).sort((a,b)=>b.confidence-a.confidence); const bestPart=rankedPart[0]; const entitiesPart=extractEntities(part,context.entities); const refsPart=resolveReferences(part,context,entitiesPart);
    return {intent:bestPart?.intent.id??"",confidence:bestPart?.confidence??0,input:part,action:bestPart?.intent.action??{type:"none"},references:refsPart};
   });
-  const decision=decide(steps,intents);\n  const actionPlan=buildActionPlan(steps,steps.flatMap(s=>s.references));\n  const execution=compileExecution(actionPlan,context.entities??{});\n  decision.reason += " Action plan: "+actionPlan.status+". Execution: "+execution.status+". ";
+  const decision=decide(steps,intents);
+  const actionPlan=buildActionPlan(steps,steps.flatMap(s=>s.references));
+  const execution=compileExecution(actionPlan,context.entities??{});
+  decision.reason += " Action plan: "+actionPlan.status+". Execution: "+execution.status+". ";
   if(decision.mode==="clarify") return {intent:null,confidence:Math.min(...steps.map(s=>s.confidence)),response:"I understood multiple requests, but one part is not clear enough yet. Tell me which action you want first.",action:{type:"none"},normalized:normalize(input),alternatives:steps.map(s=>s.intent).filter(Boolean),needsClarification:true,entities:context.entities??{},context:{...context,decision,history:[...(context.history??[]),normalize(input)].slice(-10)}};
   const first=steps[0];
   const response=responses[first.intent]??responses.fallback;
   return {intent:first.intent,confidence:first.confidence,response:response[0],action:first.action,normalized:normalize(input),alternatives:steps.map(s=>s.intent),needsClarification:false,entities:context.entities??{},context:{...context,lastIntent:first.intent,lastTarget:first.action.type==="navigate"?first.action.target:context.lastTarget,history:[...(context.history??[]),normalize(input)].slice(-10),decision}};
- }const normalized=normalize(input);const entities=extractEntities(input,context.entities);const references=resolveReferences(input,context,entities);\nconst verifiedHit=findVerifiedKnowledge(input);\nconst knowledgeHit=findKnowledge(input,knowledge);if(verifiedHit&&verifiedHit.score>=.52){\n const nextContext={...context,history:[...(context.history??[]),normalized].slice(-10),pendingIntent:null};\n return{intent:`verified:${verifiedHit.entry.id}`,confidence:verifiedHit.score,response:verifiedHit.entry.answer,action:verifiedHit.entry.route?{type:"navigate",target:verifiedHit.entry.route}: {type:"none"},normalized,alternatives:[],needsClarification:false,entities,context:{...nextContext,entities}};\n}\nif(knowledgeHit&&knowledgeHit.score>=.55){const nextContext={...context,history:[...(context.history??[]),normalized].slice(-10),pendingIntent:null};return{intent:`knowledge:${knowledgeHit.entry.id}`,confidence:knowledgeHit.score,response:knowledgeHit.entry.answer,action:{type:"none"},normalized,alternatives:[],needsClarification:false,entities,context:{...nextContext,entities,references}};}const ranked=intents.map(intent=>({intent,confidence:score(input,intent)})).sort((a,b)=>b.confidence-a.confidence);let best=ranked[0];
+ }const normalized=normalize(input);const entities=extractEntities(input,context.entities);const references=resolveReferences(input,context,entities);
+const verifiedHit=findVerifiedKnowledge(input);
+const knowledgeHit=findKnowledge(input,knowledge);if(verifiedHit&&verifiedHit.score>=.52){
+ const nextContext={...context,history:[...(context.history??[]),normalized].slice(-10),pendingIntent:null};
+ return{intent:`verified:${verifiedHit.entry.id}`,confidence:verifiedHit.score,response:verifiedHit.entry.answer,action:verifiedHit.entry.route?{type:"navigate",target:verifiedHit.entry.route}: {type:"none"},normalized,alternatives:[],needsClarification:false,entities,context:{...nextContext,entities}};
+}
+if(knowledgeHit&&knowledgeHit.score>=.55){const nextContext={...context,history:[...(context.history??[]),normalized].slice(-10),pendingIntent:null};return{intent:`knowledge:${knowledgeHit.entry.id}`,confidence:knowledgeHit.score,response:knowledgeHit.entry.answer,action:{type:"none"},normalized,alternatives:[],needsClarification:false,entities,context:{...nextContext,entities,references}};}const ranked=intents.map(intent=>({intent,confidence:score(input,intent)})).sort((a,b)=>b.confidence-a.confidence);let best=ranked[0];
 if(context.lastTarget==="my-bots" && /\\b(status|activity|doing|running|active)\\b/.test(normalized)){const candidate=intents.find(x=>x.id==="bot_status");if(candidate)best={intent:candidate,confidence:Math.max(best?.confidence??0,.82)};}
 if(context.pendingIntent){const pending=intents.find(x=>x.id===context.pendingIntent);if(pending){const pendingScore=score(input,pending);if(pendingScore>.15)best={intent:pending,confidence:Math.min(.99,pendingScore+.15)};}}
 if(!best||best.confidence<.30)return{intent:null,confidence:best?.confidence??0,response:responses.fallback[0],action:{type:"none"},normalized,alternatives:ranked.slice(0,3).filter(x=>x.confidence>0).map(x=>x.intent.id),needsClarification:false,entities,context:{...context,entities,references}};
