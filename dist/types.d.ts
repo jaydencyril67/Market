@@ -90,4 +90,5 @@ export type BrainResult = {
     needsClarification: boolean;
     entities: BrainEntities;
     context: BrainContext;
+    liveData?: unknown;
 };
