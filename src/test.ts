@@ -11,3 +11,6 @@ console.log("RESET",JSON.stringify(session.ask("is it running?")));
 
 const reasoningTests=["open my bots and check my bot","show my portfolio and then open settings","deposit and show my balance","open my bots and what is the weather"];
 for(const input of reasoningTests){const result=think(input);console.log("REASONING",JSON.stringify({input,intent:result.intent,confidence:result.confidence,decision:result.context.decision,clarify:result.needsClarification}));}
+
+const planningTests=["check my bot","open my bots and check bot abc123","show my portfolio and open settings"];
+for(const input of planningTests){const result=think(input);console.log("PLAN",JSON.stringify({input,decision:result.context.decision,action:result.action,entities:result.entities}));}
