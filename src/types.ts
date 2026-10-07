@@ -11,4 +11,4 @@ export type ExecutionCommand={id:string;intent:string;action:BrainAction;paramet
 export type ExecutionPlan={status:"ready"|"needs_confirmation"|"partial";commands:ExecutionCommand[];reason:string};
 export type ExecutionResult={commandId:string;status:"executed"|"failed"|"rejected";message:string};
 export type BrainContext = { lastIntent?:string; lastTarget?:string; history?:string[]; pendingIntent?:string|null; entities?:BrainEntities; references?:BrainReference[]; decision?:ReasoningDecision };
-export type BrainResult = { intent:string|null; confidence:number; response:string; action:BrainAction; normalized:string; alternatives:string[]; needsClarification:boolean; entities:BrainEntities; context:BrainContext };
+export type BrainResult = { intent:string|null; confidence:number; response:string; action:BrainAction; normalized:string; alternatives:string[]; needsClarification:boolean; entities:BrainEntities; context:BrainContext; liveData?:unknown };
