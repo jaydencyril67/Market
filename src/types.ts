@@ -1,4 +1,4 @@
-export type BrainAction = { type:"navigate"; target:string } | { type:"none" };
+export type BrainAction = { type:"navigate"; target:string } | { type:"back" } | { type:"forward" } | { type:"scroll_page"; direction:"up"|"down"; amount?:number; position?:"top"|"bottom" } | { type:"scroll_nowbar"; direction:"left"|"right"; amount?:number } | { type:"expand_nowbar" } | { type:"collapse_nowbar" } | { type:"none" };
 export type Intent = { id:string; description:string; phrases:string[]; keywords:string[]; action?:BrainAction; priority?:number };
 export type BrainEntities = { botId?:string; apiKeyId?:string; webhookId?:string; page?:string; amount?:string; raw?:Record<string,string> };
 export type BrainReference = { type:"bot"|"apiKey"|"webhook"|"page"|"amount"; value:string; source:string };
