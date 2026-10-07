@@ -7,4 +7,8 @@ export function decide(steps:BrainStep[],intents:Intent[]):ReasoningDecision{
  if(steps.length===1)return{mode:"single",steps,reason:"One clear request was detected."};
  return{mode:"sequence",steps,reason:"Multiple compatible requests were detected and can be handled in order."};
 }
-export function isCompatible(a:BrainAction,b:BrainAction){if(a.type==="none"||b.type==="none")return true;return a.target!==b.target;}
+export function isCompatible(a:BrainAction,b:BrainAction){
+ if(a.type==="none"||b.type==="none")return true;
+ if(a.type==="navigate"&&b.type==="navigate")return a.target!==b.target;
+ return a.type!==b.type;
+}
