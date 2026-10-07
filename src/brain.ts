@@ -1,0 +1,6 @@
+import { intents } from "./intents/core";
+import { responses } from "./responses/core";
+import { BrainResult,Intent } from "./types";
+const normalize=(input:string)=>input.toLowerCase().replace(/[^a-z0-9\\s-]/g," ").replace(/\\s+/g," ").trim();
+function score(input:string,intent:Intent):number { const text=normalize(input); if(!text)return 0; let points=0; for(const phrase of intent.phrases)if(text.includes(normalize(phrase)))points+=0.65; for(const keyword of intent.keywords)if(text.includes(normalize(keyword)))points+=0.22; return Math.min(points,0.99); }
+export function think(input:string):BrainResult { const ranked=intents.map(intent=>({intent,confidence:score(input,intent)})).sort((a,b)=>b.confidence-a.confidence); const best=ranked[0]; if(!best||best.confidence<0.35)return{intent:null,confidence:best?.confidence??0,response:responses.fallback[0],action:{type:"none"}}; const alternatives=ranked.filter(x=>x.confidence>0).slice(0,2); if(alternatives.length>1&&best.confidence-alternatives[1].confidence<0.08)return{intent:null,confidence:best.confidence,response:responses.unclear[0],action:{type:"none"}}; const options=responses[best.intent.id]??responses.fallback; return{intent:best.intent.id,confidence:best.confidence,response:options[0],action:best.intent.action??{type:"none"}}; }
