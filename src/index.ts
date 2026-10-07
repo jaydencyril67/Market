@@ -1,4 +1,5 @@
 export * from "./types";
 export * from "./brain";
 export {BrainSession} from "./session";
-export {appKnowledge} from "./knowledge/app";
+export {appKnowledge,knowledge} from "./knowledge/app";
+export {findKnowledge} from "./knowledge/matcher";
