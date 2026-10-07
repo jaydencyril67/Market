@@ -44,6 +44,11 @@ if(context.lastTarget==="my-bots" && /\\b(status|activity|doing|running|active)\
 if(context.pendingIntent){const pending=intents.find(x=>x.id===context.pendingIntent);if(pending){const pendingScore=score(input,pending);if(pendingScore>.15)best={intent:pending,confidence:Math.min(.99,pendingScore+.15)};}}
 if(!best||best.confidence<.30)return{intent:null,confidence:best?.confidence??0,response:chooseResponse(responses.fallback,context.history??[]),action:{type:"none"},normalized,alternatives:ranked.slice(0,3).filter(x=>x.confidence>0).map(x=>x.intent.id),needsClarification:false,entities,context:{...context,entities,references}};
 const alternatives=ranked.filter(x=>x.confidence>0).slice(0,3);const ambiguous=alternatives.length>1&&best.confidence<.7&&best.confidence-alternatives[1].confidence<.12;if(ambiguous)return{intent:null,confidence:best.confidence,response:chooseResponse(responses.unclear,context.history??[]),action:{type:"none"},normalized,alternatives:alternatives.map(x=>x.intent.id),needsClarification:true,entities,context:{...context,pendingIntent:best.intent.id,entities,references}};
+if(best.intent.id==="scroll"){
+ const scrollTop=/\\b(top|beginning)\\b/.test(normalized);
+ const scrollBottom=/\\b(bottom|end)\\b/.test(normalized);
+ best={...best,action:{type:"scroll_page",direction:/\\bup\\b/.test(normalized)?"up":"down",position:scrollTop?"top":scrollBottom?"bottom":undefined}};
+}
 if(references.length){
  const ref=references[0];
  if(ref.type==="bot"&&best.intent.id==="bot_status"){best={intent:intents.find(x=>x.id==="bot_status")!,confidence:Math.max(best.confidence,.88)};}
