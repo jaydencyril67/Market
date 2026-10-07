@@ -7,3 +7,5 @@ export {findKnowledge} from "./knowledge/matcher";
 export {splitRequests,decide,isCompatible} from "./reasoning/decision";
 
 export {buildActionPlan} from "./reasoning/planner";
+
+export {compileExecution} from "./reasoning/executor";
