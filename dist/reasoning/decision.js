@@ -14,5 +14,10 @@ function decide(steps, intents) {
         return { mode: "single", steps, reason: "One clear request was detected." };
     return { mode: "sequence", steps, reason: "Multiple compatible requests were detected and can be handled in order." };
 }
-function isCompatible(a, b) { if (a.type === "none" || b.type === "none")
-    return true; return a.target !== b.target; }
+function isCompatible(a, b) {
+    if (a.type === "none" || b.type === "none")
+        return true;
+    if (a.type === "navigate" && b.type === "navigate")
+        return a.target !== b.target;
+    return a.type !== b.type;
+}

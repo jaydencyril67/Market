@@ -2,6 +2,23 @@ export type BrainAction = {
     type: "navigate";
     target: string;
 } | {
+    type: "back";
+} | {
+    type: "forward";
+} | {
+    type: "scroll_page";
+    direction: "up" | "down";
+    amount?: number;
+    position?: "top" | "bottom";
+} | {
+    type: "scroll_nowbar";
+    direction: "left" | "right";
+    amount?: number;
+} | {
+    type: "expand_nowbar";
+} | {
+    type: "collapse_nowbar";
+} | {
     type: "none";
 };
 export type Intent = {
@@ -75,6 +92,7 @@ export type BrainContext = {
     lastIntent?: string;
     lastTarget?: string;
     history?: string[];
+    responseHistory?: string[];
     pendingIntent?: string | null;
     entities?: BrainEntities;
     references?: BrainReference[];
