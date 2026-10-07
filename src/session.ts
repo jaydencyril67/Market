@@ -6,4 +6,6 @@ export class BrainSession{
  reset(){this.context={history:[],entities:{}};}
  get history(){return this.context.history??[];}
  get entities(){return this.context.entities??{};}
+ get lastIntent(){return this.context.lastIntent;}
+ get lastTarget(){return this.context.lastTarget;}
 }
