@@ -1,9 +1,0 @@
-{
-  "name": "@crybots/brain",
-  "version": "0.1.0",
-  "description": "Crybots specialized knowledge and intent brain",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "scripts": {"build": "tsc", "test": "node dist/test.js"},
-  "devDependencies": {"typescript": "^5.9.3"}
-}
