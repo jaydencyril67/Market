@@ -1,0 +1,93 @@
+export type BrainAction = {
+    type: "navigate";
+    target: string;
+} | {
+    type: "none";
+};
+export type Intent = {
+    id: string;
+    description: string;
+    phrases: string[];
+    keywords: string[];
+    action?: BrainAction;
+    priority?: number;
+};
+export type BrainEntities = {
+    botId?: string;
+    apiKeyId?: string;
+    webhookId?: string;
+    page?: string;
+    amount?: string;
+    raw?: Record<string, string>;
+};
+export type BrainReference = {
+    type: "bot" | "apiKey" | "webhook" | "page" | "amount";
+    value: string;
+    source: string;
+};
+export type BrainStep = {
+    intent: string;
+    confidence: number;
+    input: string;
+    action: BrainAction;
+    references: BrainReference[];
+};
+export type ReasoningDecision = {
+    mode: "single" | "sequence" | "clarify";
+    steps: BrainStep[];
+    reason: string;
+};
+export type ActionPlanStep = {
+    order: number;
+    intent: string;
+    action: BrainAction;
+    status: "ready" | "blocked";
+    requiresEntity?: boolean;
+    reason?: string;
+};
+export type ActionPlan = {
+    status: "ready" | "partial";
+    steps: ActionPlanStep[];
+    reason: string;
+};
+export type ActionRisk = "low" | "medium" | "high";
+export type ExecutionCommand = {
+    id: string;
+    intent: string;
+    action: BrainAction;
+    parameters: Record<string, string>;
+    risk: ActionRisk;
+    requiresConfirmation: boolean;
+    status: "ready" | "needs_confirmation" | "blocked";
+    reason?: string;
+};
+export type ExecutionPlan = {
+    status: "ready" | "needs_confirmation" | "partial";
+    commands: ExecutionCommand[];
+    reason: string;
+};
+export type ExecutionResult = {
+    commandId: string;
+    status: "executed" | "failed" | "rejected";
+    message: string;
+};
+export type BrainContext = {
+    lastIntent?: string;
+    lastTarget?: string;
+    history?: string[];
+    pendingIntent?: string | null;
+    entities?: BrainEntities;
+    references?: BrainReference[];
+    decision?: ReasoningDecision;
+};
+export type BrainResult = {
+    intent: string | null;
+    confidence: number;
+    response: string;
+    action: BrainAction;
+    normalized: string;
+    alternatives: string[];
+    needsClarification: boolean;
+    entities: BrainEntities;
+    context: BrainContext;
+};
