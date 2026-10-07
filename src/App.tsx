@@ -1,339 +1,357 @@
 import { useEffect, useRef, useState } from 'react'
-import { Vela } from '@luxalgo/vela'
+import * as THREE from 'three'
 
-type Candle = { timestamp: number; open: number; close: number; high: number; low: number; volume: number }
-type Range = '1H' | '4H' | '1D' | '1W' | '1M' | 'ALL'
-type Timeframe = '1m' | '5m' | '15m' | '1h' | '4h' | '1D'
+type GameState = 'ready' | 'playing' | 'paused' | 'over'
 
-type VelaChart = InstanceType<typeof Vela>
-
-// Visible windows for the 1-minute candles, matching real crypto chart presets.
-const ranges: Record<Range, number | null> = { '1H': 60, '4H': 240, '1D': 1_440, '1W': 10_080, '1M': 43_200, ALL: null }
-const timeframeMinutes: Record<Timeframe, number> = { '1m': 1, '5m': 5, '15m': 15, '1h': 60, '4h': 240, '1D': 1_440 }
-const BAR_INTERVAL_MS = 60_000
-const RIGHT_PADDING_BARS = 6
-const money = (value: number) => `${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-
-function toVelaBars(candles: Candle[]) {
-  return candles.map((candle) => ({
-    time: candle.timestamp,
-    open: candle.open,
-    high: candle.high,
-    low: candle.low,
-    close: candle.close,
-    volume: candle.volume,
-  }))
-}
-
-function aggregateCandles(candles: Candle[], timeframe: Timeframe): Candle[] {
-  const minutes = timeframeMinutes[timeframe]
-  if (minutes === 1) return candles
-  const interval = minutes * BAR_INTERVAL_MS
-  const groups = new Map<number, Candle>()
-  for (const candle of candles) {
-    const bucket = Math.floor(candle.timestamp / interval) * interval
-    const existing = groups.get(bucket)
-    if (!existing) {
-      groups.set(bucket, { ...candle, timestamp: bucket })
-    } else {
-      existing.high = Math.max(existing.high, candle.high)
-      existing.low = Math.min(existing.low, candle.low)
-      existing.close = candle.close
-      existing.volume += candle.volume
-    }
-  }
-  return [...groups.values()].sort((first, second) => first.timestamp - second.timestamp)
-}
-
-function withRightPadding(candles: Candle[], timeframe: Timeframe, visibleRange?: { from: number; to: number } | null) {
-  const paddedTo = candles[candles.length - 1].timestamp + BAR_INTERVAL_MS * timeframeMinutes[timeframe] * RIGHT_PADDING_BARS
-  if (!visibleRange) return { from: candles[0].timestamp, to: paddedTo }
-
-  const span = visibleRange.to - visibleRange.from
-  const to = Math.max(visibleRange.to, paddedTo)
-  return { from: to - span, to }
-}
-
-function App() {
-  const [range, setRange] = useState<Range>('1D')
-  const [timeframe, setTimeframe] = useState<Timeframe>('1m')
-  const [serverCandles, setServerCandles] = useState<Candle[] | null>(null)
-  const [chartReady, setChartReady] = useState(false)
-  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'live' | 'reconnecting' | 'offline'>('connecting')
-  const [historyHasMore, setHistoryHasMore] = useState(false)
-  const [loadingHistory, setLoadingHistory] = useState(false)
-  const [volumeVisible, setVolumeVisible] = useState(false)
-  const [activeIndicators, setActiveIndicators] = useState<string[]>([])
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const chartPanel = useRef<HTMLElement | null>(null)
-  const chartElement = useRef<HTMLDivElement | null>(null)
-  const chart = useRef<VelaChart | null>(null)
-  const historyReady = useRef(false)
-  const serverCandlesRef = useRef<Candle[] | null>(null)
-  const pendingChartData = useRef<Candle[] | null>(null)
-  const chartUpdateActive = useRef(false)
-  const chartHasData = useRef(false)
-
-  const requestChartData = (candles: Candle[]) => {
-    pendingChartData.current = candles
-    if (!chart.current || chartUpdateActive.current) return
-    chartUpdateActive.current = true
-    void (async () => {
-      try {
-        while (pendingChartData.current) {
-          const nextCandles = pendingChartData.current
-          pendingChartData.current = null
-          if (chart.current) {
-            const visibleRange = chartHasData.current ? chart.current.getVisibleRange() : null
-            await chart.current.setMarket({
-              data: toVelaBars(nextCandles),
-              timeframe: timeframeMinutes[timeframe].toString(),
-              ...(visibleRange ? { visibleRange } : {}),
-            })
-            if (!chartHasData.current) {
-              await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
-              chart.current.setVisibleRange(withRightPadding(nextCandles, timeframe, visibleRange))
-            }
-            chartHasData.current = true
-          }
-        }
-      } catch {
-        pendingChartData.current = null
-      } finally {
-        chartUpdateActive.current = false
-      }
-    })()
-  }
-
-  const updateLiveCandle = (candle: Candle) => {
-    const currentChart = chart.current
-    if (!currentChart || !chartHasData.current) return false
-
-    // Vela currently exposes updateBar on the renderer, but not through the public
-    // RendererControl facade. Use that existing incremental path for the forming bar;
-    // setMarket remains the fallback for a new bar or older Vela builds.
-    const internalChart = currentChart as unknown as {
-      orchestrator?: { renderer?: { updateBar?: (bar: ReturnType<typeof toVelaBars>[number]) => void } }
-    }
-    const updateBar = internalChart.orchestrator?.renderer?.updateBar
-    if (!updateBar) return false
-
-    updateBar.call(internalChart.orchestrator?.renderer, toVelaBars([candle])[0])
-    return true
-  }
+export default function App() {
+  const mountRef = useRef<HTMLDivElement>(null)
+  const [state, setState] = useState<GameState>('ready')
+  const [score, setScore] = useState(0)
+  const [coins, setCoins] = useState(0)
+  const stateRef = useRef<GameState>('ready')
+  const keys = useRef({ left: false, right: false, jump: false })
+  const restartRef = useRef<() => void>(() => {})
 
   useEffect(() => {
-    if (!chartElement.current || chart.current) return
-    chart.current = new Vela(chartElement.current, {
-      data: [],
-      timeframe: '1',
-      theme: 'dark',
-      animations: { autoscale: true, liveBar: false },
-      settings: { hidden: ['scales.price-scale.countdown'] },
-    })
-    chart.current.renderer.set('countdown', false)
-    chart.current.renderer.applyConfig({
-      series: { spacing: 0.65 },
-      margins: { top: 0, bottom: 0 },
-    })
-    if (addChartIndicator('volume', { inputs: { heightPct: 8 } })) setVolumeVisible(true)
-    setChartReady(true)
+    const mount = mountRef.current
+    if (!mount) return
+
+    const scene = new THREE.Scene()
+    scene.background = new THREE.Color(0x070b14)
+    scene.fog = new THREE.Fog(0x070b14, 18, 75)
+
+    const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 120)
+    camera.position.set(0, 4.2, 8.5)
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.8))
+    renderer.shadowMap.enabled = true
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    mount.appendChild(renderer.domElement)
+
+    const hemi = new THREE.HemisphereLight(0x9db7ff, 0x11131a, 2.2)
+    scene.add(hemi)
+    const sun = new THREE.DirectionalLight(0xffffff, 2.8)
+    sun.position.set(5, 12, 8)
+    sun.castShadow = true
+    scene.add(sun)
+
+    const world = new THREE.Group()
+    scene.add(world)
+
+    const road = new THREE.Mesh(
+      new THREE.BoxGeometry(11, 0.35, 120),
+      new THREE.MeshStandardMaterial({ color: 0x151b28, roughness: 0.9 })
+    )
+    road.position.y = -0.25
+    road.position.z = -45
+    road.receiveShadow = true
+    world.add(road)
+
+    const laneLines: THREE.Mesh[] = []
+    for (let z = 4; z > -110; z -= 5) {
+      for (const x of [-1.85, 1.85]) {
+        const line = new THREE.Mesh(
+          new THREE.BoxGeometry(0.08, 0.025, 2.1),
+          new THREE.MeshBasicMaterial({ color: 0x53617c })
+        )
+        line.position.set(x, -0.05, z)
+        world.add(line)
+        laneLines.push(line)
+      }
+    }
+
+    const stars = new THREE.Group()
+    const starGeo = new THREE.BufferGeometry()
+    const positions = new Float32Array(360 * 3)
+    for (let i = 0; i < 360; i++) {
+      positions[i * 3] = (Math.random() - 0.5) * 100
+      positions[i * 3 + 1] = 5 + Math.random() * 35
+      positions[i * 3 + 2] = -Math.random() * 100
+    }
+    starGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    stars.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0x9fb8ff, size: 0.12 })))
+    world.add(stars)
+
+    const player = new THREE.Group()
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(0.95, 1.35, 0.7),
+      new THREE.MeshStandardMaterial({ color: 0x7c5cff, metalness: 0.35, roughness: 0.28 })
+    )
+    body.position.y = 0.8
+    body.castShadow = true
+    player.add(body)
+    const visor = new THREE.Mesh(
+      new THREE.BoxGeometry(0.62, 0.25, 0.08),
+      new THREE.MeshStandardMaterial({ color: 0x8ffcff, emissive: 0x167c8a, emissiveIntensity: 1.8 })
+    )
+    visor.position.set(0, 1.02, -0.38)
+    player.add(visor)
+    player.position.set(0, 0, 3)
+    scene.add(player)
+
+    const obstacleMat = new THREE.MeshStandardMaterial({ color: 0xff4f68, emissive: 0x5c0e20, emissiveIntensity: 0.45 })
+    const coinMat = new THREE.MeshStandardMaterial({ color: 0xffd34e, metalness: 0.8, roughness: 0.18, emissive: 0x6b3d00, emissiveIntensity: 0.35 })
+
+    type Item = { mesh: THREE.Mesh; lane: number; kind: 'obstacle' | 'coin'; hit: boolean }
+    let items: Item[] = []
+    let running = false
+    let ended = false
+    let distance = 0
+    let currentScore = 0
+    let currentCoins = 0
+    let speed = 12
+    let spawnTimer = 0
+    let coinTimer = 0
+    let last = performance.now()
+    let playerY = 0
+    let verticalVelocity = 0
+
+    const laneX = [-3.2, 0, 3.2]
+
+    const removeItem = (item: Item) => {
+      world.remove(item.mesh)
+      item.mesh.geometry.dispose()
+      if (Array.isArray(item.mesh.material)) item.mesh.material.forEach(m => m.dispose())
+      else item.mesh.material.dispose()
+    }
+
+    const clearItems = () => {
+      items.forEach(removeItem)
+      items = []
+    }
+
+    const setGameState = (next: GameState) => {
+      stateRef.current = next
+      setState(next)
+    }
+
+    const reset = () => {
+      clearItems()
+      player.position.set(0, 0, 3)
+      player.rotation.set(0, 0, 0)
+      playerY = 0
+      verticalVelocity = 0
+      distance = 0
+      currentScore = 0
+      currentCoins = 0
+      speed = 12
+      spawnTimer = 0
+      coinTimer = 0
+      ended = false
+      setScore(0)
+      setCoins(0)
+      setGameState('ready')
+    }
+
+    const start = () => {
+      if (ended) reset()
+      running = true
+      ended = false
+      setGameState('playing')
+    }
+
+    const pause = () => {
+      if (!running || ended) return
+      running = false
+      setGameState('paused')
+    }
+
+    const resume = () => {
+      if (ended) return
+      running = true
+      setGameState('playing')
+    }
+
+    restartRef.current = reset
+
+    const spawnObstacle = () => {
+      const lane = Math.floor(Math.random() * 3)
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(1.55, 1.2, 1.2), obstacleMat.clone())
+      mesh.position.set(laneX[lane], 0.58, -72)
+      mesh.castShadow = true
+      world.add(mesh)
+      items.push({ mesh, lane, kind: 'obstacle', hit: false })
+    }
+
+    const spawnCoin = () => {
+      const lane = Math.floor(Math.random() * 3)
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.12, 20), coinMat)
+      mesh.rotation.x = Math.PI / 2
+      mesh.position.set(laneX[lane], 1.05 + Math.random() * 1.3, -72)
+      mesh.castShadow = true
+      world.add(mesh)
+      items.push({ mesh, lane, kind: 'coin', hit: false })
+    }
+
+    const collide = (item: Item) => {
+      const dx = Math.abs(item.mesh.position.x - player.position.x)
+      const dz = Math.abs(item.mesh.position.z - player.position.z)
+      const dy = Math.abs(item.mesh.position.y - (player.position.y + 0.75))
+      return dx < 1.25 && dz < 1.25 && dy < 1.35
+    }
+
+    const onKey = (down: boolean, key: string) => {
+      if (key === 'ArrowLeft' || key.toLowerCase() === 'a') keys.current.left = down
+      if (key === 'ArrowRight' || key.toLowerCase() === 'd') keys.current.right = down
+      if ((key === 'ArrowUp' || key === ' ' || key.toLowerCase() === 'w') && down) keys.current.jump = true
+      if (key.toLowerCase() === 'p' && down) {
+        if (stateRef.current === 'playing') pause()
+        else if (stateRef.current === 'paused') resume()
+      }
+    }
+
+    const keyDown = (e: KeyboardEvent) => onKey(true, e.key)
+    const keyUp = (e: KeyboardEvent) => onKey(false, e.key)
+    window.addEventListener('keydown', keyDown)
+    window.addEventListener('keyup', keyUp)
+
+    const resize = () => {
+      const w = Math.max(mount.clientWidth, 320)
+      const h = Math.max(mount.clientHeight, 420)
+      camera.aspect = w / h
+      camera.updateProjectionMatrix()
+      renderer.setSize(w, h, false)
+    }
+    resize()
+    const resizeObserver = new ResizeObserver(resize)
+    resizeObserver.observe(mount)
+
+    const animate = (now: number) => {
+      const dt = Math.min((now - last) / 1000, 0.05)
+      last = now
+
+      if (running && !ended) {
+        const steer = (keys.current.right ? 1 : 0) - (keys.current.left ? 1 : 0)
+        player.position.x += steer * dt * 8
+        player.position.x = THREE.MathUtils.clamp(player.position.x, -3.2, 3.2)
+        player.rotation.z = THREE.MathUtils.lerp(player.rotation.z, -steer * 0.13, dt * 8)
+
+        if (keys.current.jump && playerY <= 0.01) verticalVelocity = 8.5
+        keys.current.jump = false
+        verticalVelocity -= 20 * dt
+        playerY += verticalVelocity * dt
+        if (playerY < 0) {
+          playerY = 0
+          verticalVelocity = 0
+        }
+        player.position.y = playerY
+
+        speed = Math.min(24, speed + dt * 0.22)
+        distance += speed * dt
+        currentScore = Math.floor(distance * 10) + currentCoins * 25
+        setScore(currentScore)
+
+        spawnTimer += dt
+        coinTimer += dt
+        if (spawnTimer > Math.max(0.52, 1.15 - distance / 700)) {
+          spawnTimer = 0
+          spawnObstacle()
+          if (Math.random() < 0.35) spawnObstacle()
+        }
+        if (coinTimer > 0.55) {
+          coinTimer = 0
+          spawnCoin()
+        }
+
+        for (const line of laneLines) {
+          line.position.z += speed * dt
+          if (line.position.z > 7) line.position.z -= 115
+        }
+
+        for (let i = items.length - 1; i >= 0; i--) {
+          const item = items[i]
+          item.mesh.position.z += speed * dt
+          if (item.kind === 'coin') item.mesh.rotation.z += dt * 7
+
+          if (!item.hit && collide(item)) {
+            item.hit = true
+            if (item.kind === 'coin') {
+              currentCoins += 1
+              setCoins(currentCoins)
+              currentScore = Math.floor(distance * 10) + currentCoins * 25
+              setScore(currentScore)
+              removeItem(item)
+              items.splice(i, 1)
+              continue
+            } else {
+              ended = true
+              running = false
+              setGameState('over')
+            }
+          }
+
+          if (item.mesh.position.z > 8) {
+            removeItem(item)
+            items.splice(i, 1)
+          }
+        }
+      }
+
+      camera.position.x = THREE.MathUtils.lerp(camera.position.x, player.position.x * 0.16, dt * 4)
+      camera.lookAt(player.position.x * 0.18, 1.2 + playerY * 0.12, -8)
+      renderer.render(scene, camera)
+      requestAnimationFrame(animate)
+    }
+
+    const frame = requestAnimationFrame(animate)
+
+    ;(mount as HTMLDivElement & { __game?: { start: () => void; pause: () => void; resume: () => void } }).__game = { start, pause, resume }
+
     return () => {
-      chart.current?.destroy()
-      chart.current = null
+      cancelAnimationFrame(frame)
+      resizeObserver.disconnect()
+      window.removeEventListener('keydown', keyDown)
+      window.removeEventListener('keyup', keyUp)
+      clearItems()
+      renderer.dispose()
+      renderer.domElement.remove()
     }
   }, [])
 
-  useEffect(() => {
-    if (chartReady && pendingChartData.current) requestChartData(pendingChartData.current)
-  }, [chartReady, timeframe])
-
-  useEffect(() => {
-    let active = true
-    const load = async () => {
-      try {
-        const response = await fetch(`/api/market?range=${range}`)
-        if (!response.ok) throw new Error('Market unavailable')
-        const data = await response.json() as { candles?: Candle[]; hasMore?: boolean }
-        if (active && Array.isArray(data.candles)) {
-          historyReady.current = true
-          serverCandlesRef.current = data.candles
-          setHistoryHasMore(Boolean(data.hasMore))
-          const displayCandles = aggregateCandles(data.candles, timeframe)
-          setServerCandles(displayCandles)
-          requestChartData(displayCandles)
-        }
-      } catch {
-        if (active) {
-          serverCandlesRef.current = []
-          setServerCandles([])
-          setHistoryHasMore(false)
-        }
-      }
-    }
-    void load()
-    const stream = new EventSource('/api/market/stream')
-    stream.onopen = () => setConnectionStatus('live')
-    stream.onerror = () => setConnectionStatus(stream.readyState === EventSource.CLOSED ? 'offline' : 'reconnecting')
-    stream.onmessage = (event) => {
-      const candle = JSON.parse(event.data) as Candle
-      if (!active) return
-      const previousCandles = serverCandlesRef.current ?? []
-      const nextCandles = [...previousCandles.filter((item) => item.timestamp !== candle.timestamp), candle]
-        .sort((first, second) => first.timestamp - second.timestamp)
-      const displayCandles = aggregateCandles(nextCandles, timeframe)
-      serverCandlesRef.current = nextCandles
-      setServerCandles(displayCandles)
-
-      if (historyReady.current) {
-        const latestSourceCandle = nextCandles[nextCandles.length - 1]
-        const latestDisplayCandle = displayCandles[displayCandles.length - 1]
-        const isLatestCandle = latestSourceCandle?.timestamp === candle.timestamp
-        const canUpdateIncrementally = isLatestCandle && latestDisplayCandle !== undefined
-
-        // updateBar also appends a newly born bar, so avoid setMarket here. Replacing
-        // the whole dataset makes Vela recalculate the layout and visibly shakes the chart.
-        if (!canUpdateIncrementally || !updateLiveCandle(latestDisplayCandle)) requestChartData(displayCandles)
-      }
-    }
-    return () => { active = false; stream.close(); setConnectionStatus('offline') }
-  }, [range, timeframe])
-
-  const candles = serverCandles ?? []
-  const latest = candles[candles.length - 1]?.close ?? 0
-  const previous = candles[candles.length - 2]?.close ?? latest
-  const change = previous ? ((latest - previous) / previous) * 100 : 0
-  const loading = serverCandles === null || !chartReady
-
-  const resetView = () => {
-    const bars = serverCandles
-    if (!bars?.length) return
-    chart.current?.setVisibleRange(withRightPadding(bars, timeframe))
+  const action = () => {
+    const game = mountRef.current as (HTMLDivElement & { __game?: { start: () => void; pause: () => void; resume: () => void } }) | null
+    if (!game?.__game) return
+    if (state === 'ready' || state === 'over') game.__game.start()
+    else if (state === 'paused') game.__game.resume()
+    else game.__game.pause()
   }
 
-  const resetIndicators = () => {
-    ['sma', 'rsi'].forEach((type) => {
-      getIndicators(type).forEach((indicator) => indicator.remove?.())
-    })
-    setActiveIndicators([])
-    if (!getIndicators('volume').length && addChartIndicator('volume', { inputs: { heightPct: 8 } })) setVolumeVisible(true)
+  const press = (name: 'left' | 'right' | 'jump') => {
+    keys.current[name] = true
+    setTimeout(() => { keys.current[name] = false }, name === 'jump' ? 80 : 180)
   }
 
-  const loadOlderHistory = async () => {
-    const existing = serverCandlesRef.current
-    const before = existing?.[0]?.timestamp
-    if (!existing || !before || loadingHistory || !historyHasMore) return
-    setLoadingHistory(true)
-    try {
-      const response = await fetch(`/api/market?range=ALL&before=${before}&limit=1_000`)
-      if (!response.ok) throw new Error('History unavailable')
-      const data = await response.json() as { candles?: Candle[]; hasMore?: boolean }
-      if (!Array.isArray(data.candles) || !data.candles.length) {
-        setHistoryHasMore(false)
-        return
-      }
-      const merged = [...data.candles, ...existing]
-        .reduce<Candle[]>((result, candle) => {
-          if (!result.some((item) => item.timestamp === candle.timestamp)) result.push(candle)
-          return result
-        }, [])
-        .sort((first, second) => first.timestamp - second.timestamp)
-      serverCandlesRef.current = merged
-      setHistoryHasMore(Boolean(data.hasMore))
-      const displayCandles = aggregateCandles(merged, timeframe)
-      setServerCandles(displayCandles)
-      requestChartData(displayCandles)
-    } catch {
-      setConnectionStatus('reconnecting')
-    } finally {
-      setLoadingHistory(false)
-    }
-  }
+  return (
+    <div className="game-shell">
+      <div ref={mountRef} className="game-canvas" />
+      <div className="hud">
+        <div className="brand"><span className="brand-mark">KH</span><span>NEON RUN</span></div>
+        <div className="stats">
+          <div><small>SCORE</small><strong>{score.toLocaleString()}</strong></div>
+          <div><small>COINS</small><strong>🪙 {coins}</strong></div>
+        </div>
+      </div>
 
-  const toggleFullscreen = async () => {
-    try {
-      if (document.fullscreenElement) await document.exitFullscreen()
-      else await chartPanel.current?.requestFullscreen()
-    } catch {
-      // Fullscreen can be denied by the browser or an embedded host; keep the chart usable.
-    }
-  }
-  const selectRange = (nextRange: Range) => {
-    historyReady.current = false
-    setRange(nextRange)
-    serverCandlesRef.current = null
-    chartHasData.current = false
-    setHistoryHasMore(false)
-    setServerCandles(null)
-  }
+      {state !== 'playing' && (
+        <div className="overlay">
+          <div className="panel">
+            <div className="eyebrow">{state === 'over' ? 'RUN COMPLETE' : state === 'paused' ? 'PAUSED' : 'FIRST RUN'}</div>
+            <h1>{state === 'over' ? 'You crashed.' : 'NEON RUN'}</h1>
+            <p>{state === 'over' ? 'The road got the better of you. Try again and beat your score.' : 'Dodge the blocks, grab the coins, and see how far you can go.'}</p>
+            <button className="primary" onClick={action}>{state === 'over' ? 'RUN AGAIN' : state === 'paused' ? 'RESUME' : 'START GAME'}</button>
+            {state === 'ready' && <div className="hint">← → move · ↑ jump · P pause</div>}
+            {state === 'over' && <div className="result">Final score <b>{score.toLocaleString()}</b> · Coins <b>{coins}</b></div>}
+          </div>
+        </div>
+      )}
 
-  type ChartIndicator = { type: string; remove?: () => void }
-  type ChartControls = VelaChart & {
-    indicators?: () => ChartIndicator[]
-    addNativeIndicator?: (type: string, options?: { inputs?: Record<string, string | number | boolean> }) => void
-    addIndicator?: (type: string, options?: { inputs?: Record<string, string | number | boolean> }) => void
-    drawings?: { showToolbar?: () => void }
-    drawingTools?: { showToolbar?: () => void }
-  }
-
-  const getChartControls = () => chart.current as ChartControls | null
-
-  const getIndicators = (type: string) => {
-    const handles = (getChartControls()?.indicators?.() ?? []) as unknown as ChartIndicator[]
-    return handles.filter((indicator) => indicator.type === type)
-  }
-
-  const addChartIndicator = (type: string, options?: { inputs?: Record<string, string | number | boolean> }) => {
-    const controls = getChartControls()
-    const add = controls?.addNativeIndicator ?? controls?.addIndicator
-    if (!add) return false
-    add.call(controls, type, options)
-    return true
-  }
-
-  const toggleVolume = () => {
-    const handles = getIndicators('volume')
-    if (handles.length || volumeVisible) {
-      handles.forEach((indicator) => indicator.remove?.())
-      setVolumeVisible(false)
-      return
-    }
-    if (addChartIndicator('volume', { inputs: { heightPct: 8 } })) setVolumeVisible(true)
-  }
-
-  const toggleIndicator = (type: string) => {
-    const handles = getIndicators(type)
-    if (handles.length) {
-      handles.forEach((indicator) => indicator.remove?.())
-      setActiveIndicators((current) => current.filter((item) => item !== type))
-      return
-    }
-    if (addChartIndicator(type)) setActiveIndicators((current) => [...current, type])
-  }
-
-  const showDrawingTools = () => {
-    const controls = getChartControls()
-    const drawingTarget = controls?.drawings ?? controls?.drawingTools
-    const showToolbar = drawingTarget?.showToolbar
-    if (showToolbar) showToolbar.call(drawingTarget)
-  }
-
-  const toggleSettings = () => setSettingsOpen((open) => !open)
-
-  const selectTimeframe = (nextTimeframe: Timeframe) => {
-    if (nextTimeframe === timeframe) return
-    historyReady.current = false
-    chartHasData.current = false
-    setTimeframe(nextTimeframe)
-    serverCandlesRef.current = null
-    pendingChartData.current = null
-    setServerCandles(null)
-  }
-
-  return <main className="market-chart"><section className="chart-panel" ref={chartPanel}>
-    <div className="chart-topbar"><div className="chart-market"><strong>KRN/USDT</strong><span className={`market-status ${connectionStatus}`}>● {connectionStatus.toUpperCase()}</span></div><div className="chart-actions"><button type="button" onClick={() => { resetView(); resetIndicators() }}>Reset</button><button type="button" onClick={toggleVolume} className={volumeVisible ? 'active' : ''}>Volume</button><button type="button" onClick={() => toggleIndicator('sma')} className={activeIndicators.includes('sma') ? 'active' : ''}>SMA</button><button type="button" onClick={() => toggleIndicator('rsi')} className={activeIndicators.includes('rsi') ? 'active' : ''}>RSI</button><button type="button" onClick={showDrawingTools}>Draw</button><button type="button" aria-label="Chart settings" aria-expanded={settingsOpen} onClick={toggleSettings}>⚙</button><button type="button" aria-label="Toggle fullscreen" onClick={() => void toggleFullscreen()}>⛶</button></div>{settingsOpen && <div className="chart-settings" role="dialog" aria-label="Chart settings"><strong>Chart settings</strong><label><input type="checkbox" checked={volumeVisible} onChange={toggleVolume} /> Show volume</label><button type="button" onClick={() => { resetView(); setSettingsOpen(false) }}>Reset view</button><button type="button" onClick={() => setSettingsOpen(false)}>Close</button></div>}<div className="control-groups"><div className="control-group"><span className="control-label">Range</span><div className="range-tabs">{(Object.keys(ranges) as Range[]).map((item) => <button type="button" className={item === range ? 'selected' : ''} onClick={() => selectRange(item)} key={item}>{item}</button>)}</div></div><div className="control-group"><span className="control-label">Interval</span><div className="range-tabs">{(['1m', '5m', '15m', '1h', '4h', '1D'] as Timeframe[]).map((item) => <button type="button" className={item === timeframe ? 'selected' : ''} onClick={() => selectTimeframe(item)} key={item}>{item}</button>)}</div></div></div><div className="chart-tools"><button type="button" className="load-history" onClick={() => void loadOlderHistory()} disabled={!historyHasMore || loadingHistory}>{loadingHistory ? 'Loading…' : historyHasMore ? 'Load older' : 'History loaded'}</button><span className={change >= 0 ? 'price-up' : 'price-down'}>{latest ? money(latest) : '—'} {latest ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : ''}</span><span className="chart-mode">Candles · {timeframe}</span></div></div>
-    <div className={`chart-wrap${loading ? ' is-loading' : ''}`}><div ref={chartElement} className="vela-chart" role="img" aria-label="Live market candlestick chart" />{loading && <div className="chart-loading"><span className="loading-spinner" />Loading market data…</div>}{!loading && !candles.length && <div className="chart-loading">No market data available</div>}</div>
-  </section></main>
+      <div className="mobile-controls" aria-label="Game controls">
+        <button onPointerDown={() => press('left')} aria-label="Move left">←</button>
+        <button onPointerDown={() => press('jump')} aria-label="Jump">↑</button>
+        <button onPointerDown={() => press('right')} aria-label="Move right">→</button>
+      </div>
+      <button className="pause-button" onClick={action} aria-label={state === 'playing' ? 'Pause game' : 'Resume game'}>{state === 'playing' ? 'Ⅱ' : '▶'}</button>
+    </div>
+  )
 }
-
-export default App
