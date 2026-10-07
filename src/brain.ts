@@ -10,7 +10,7 @@ import {resolveReferences} from "./language/references";
 import {splitRequests,decide} from "./reasoning/decision";
 import {buildActionPlan} from "./reasoning/planner";
 import {compileExecution} from "./reasoning/executor";
-
+export const normalize=(input:string)=>input.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9\s-]/g," ").replace(/\s+/g," ").trim();
 export const normalize=(input:string)=>input.toLowerCase().normalize("NFKD").replace(//[\u0300-\u036f]//g,"").replace(/[^a-z0-9\s-]/g," ").replace(/\s+/g," ").trim();
 const variants=(value:string)=>{const n=normalize(value);const out=new Set([n]);for(const [key,items] of Object.entries(synonyms)){if(items.includes(n)||key===n)for(const item of items)out.add(normalize(item));}return [...out];};
 const tokenSet=(text:string)=>new Set(normalize(text).split(" ").filter(Boolean));
