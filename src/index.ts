@@ -15,3 +15,5 @@ export {thinkLive} from "./live/think";
 export type {ThinkLiveOptions} from "./live/think";
 export * from "./live/types";
 export * from "./live/router";
+export {createHttpCryBotsBridge} from "./live/http";
+export type {HttpCryBotsBridgeOptions} from "./live/http";
