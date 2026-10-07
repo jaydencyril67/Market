@@ -14,3 +14,6 @@ for(const input of reasoningTests){const result=think(input);console.log("REASON
 
 const planningTests=["check my bot","open my bots and check bot abc123","show my portfolio and open settings"];
 for(const input of planningTests){const result=think(input);console.log("PLAN",JSON.stringify({input,decision:result.context.decision,action:result.action,entities:result.entities}));}
+
+const executionTests=["how do i withdraw","create a bot","open my bots and check bot abc123"];
+for(const input of executionTests){const result=think(input);console.log("EXECUTION",JSON.stringify({input,decision:result.context.decision,entities:result.entities}));}
