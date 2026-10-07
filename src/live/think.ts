@@ -42,14 +42,14 @@ export async function thinkLive(
     return {
       ...result,
       response:live.message??"I couldn't retrieve your current CryBots data right now. Please try again.",
-      action:{type:"none"},
+      action:result.action,
     };
   }
 
   return {
     ...result,
     response:live.message??"I checked the current CryBots data, but there is no live summary available yet.",
-    action:{type:"none"},
+    action:result.action,
     context:{...result.context,lastTarget:result.context.lastTarget},
   };
 }
