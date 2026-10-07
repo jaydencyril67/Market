@@ -320,7 +320,7 @@ fallback:[
 "What do you need help with?",
 "Give me the question or action and I’ll take it from there.",
 "Alright — what are we trying to get done?"
-],,
+],
 context_unclear:[
 "I think you’re referring to something from the last step, but I can’t tell which part yet.",
 "I have some context, but not enough to safely connect that to the previous request.",
