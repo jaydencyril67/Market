@@ -9,5 +9,10 @@ export const intents:Intent[]=[
 {id:"webhooks",description:"User wants Webhooks.",phrases:["open webhooks","where are webhooks","manage webhooks"],keywords:["webhooks","webhook"],action:{type:"navigate",target:"webhooks"}},
 {id:"trading",description:"User asks about trading.",phrases:["how do i trade","where can i trade","how do orders work"],keywords:["trade","trading","buy","sell","order"],action:{type:"navigate",target:"trade"}},
 {id:"security",description:"User asks about Crybots security.",phrases:["how secure is crybots","where are security settings","how do i enable 2fa"],keywords:["security","2fa","authentication","password"],action:{type:"navigate",target:"security"}},
-{id:"help",description:"User requests Crybots help.",phrases:["help me","what can you do","what can i ask","how does crybots work"],keywords:["help","support","assist"],action:{type:"navigate",target:"help"}}
+{id:"help",description:"User requests Crybots help.",phrases:["help me","what can you do","what can i ask","how does crybots work"],keywords:["help","support","assist","guide"],action:{type:"navigate",target:"help"}},
+{id:"home",description:"User wants the Crybots home page.",phrases:["go home","take me home","open home","back to home"],keywords:["home","dashboard"],action:{type:"navigate",target:"home"}},
+{id:"settings",description:"User wants app settings.",phrases:["open settings","where are settings","show settings"],keywords:["settings","preferences","options"],action:{type:"navigate",target:"settings"}},
+{id:"voice",description:"User asks about voice mode.",phrases:["turn on voice mode","enable voice mode","how does voice work"],keywords:["voice","voice mode","speaking"],action:{type:"none"}},
+{id:"bot_create",description:"User wants to create a bot.",phrases:["create a bot","make a bot","i want a new bot"],keywords:["create bot","new bot","make bot"],action:{type:"navigate",target:"create-bot"}},
+{id:"bot_status",description:"User wants bot status.",phrases:["check my bot","what is my bot doing","show bot status"],keywords:["bot status","bot details","bot activity"],action:{type:"navigate",target:"my-bots"}}
 ];
