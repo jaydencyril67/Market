@@ -20,3 +20,6 @@ for(const input of executionTests){const result=think(input);console.log("EXECUT
 
 import {executeCommand} from "./execution/runtime";
 (async()=>{const safe={id:"safe-1",intent:"portfolio",action:{type:"navigate" as const,target:"portfolio"},parameters:{},risk:"low" as const,requiresConfirmation:false,status:"ready" as const};const sensitive={...safe,id:"withdraw-1",intent:"withdraw",risk:"high" as const,requiresConfirmation:true};console.log("RUNTIME SAFE",await executeCommand(safe,async cmd=>({commandId:cmd.id,status:"executed",message:"Executor accepted command."})));console.log("RUNTIME BLOCKED",await executeCommand(sensitive,async cmd=>({commandId:cmd.id,status:"executed",message:"Executor accepted command."})));console.log("RUNTIME CONFIRMED",await executeCommand(sensitive,async cmd=>({commandId:cmd.id,status:"executed",message:"Executor accepted command."}),true));})();
+
+const verifiedTests=["what is CryBots","how do I deposit crypto","what webhook events are supported","can i delete my account","how do bot rentals work","can voice open api keys","are bot profits guaranteed","where can i manage my assets"];
+for(const input of verifiedTests){const result=think(input);console.log("VERIFIED",JSON.stringify({input,intent:result.intent,confidence:result.confidence,action:result.action,clarify:result.needsClarification}));}
