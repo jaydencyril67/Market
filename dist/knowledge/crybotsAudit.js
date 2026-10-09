@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.dynamicDataRules = exports.verifiedRelationships = exports.verifiedRoutes = exports.crybotsAudit = void 0;
 exports.crybotsAudit = {
     repository: "jaydencyril67/Kingshall",
-    ref: "c6d258521400c5feb18d31b0e3f5e6b02621a993",
+    ref: "305af63968891264065ae5bab0a2423ea4997912",
     verifiedFrom: "src/index.tsx",
     purpose: "v1.2 route and architecture audit",
     rule: "The Brain may explain verified navigation and feature relationships, but must query CryBots for live account state instead of inventing it."
@@ -61,6 +61,7 @@ exports.verifiedRoutes = [
     { route: "/menu", key: "menu", component: "MenuPage", access: "protected", area: "tools", sourcePath: "src/index.tsx" },
     { route: "/agent", key: "agent", component: "AgentPage", access: "protected", area: "automation", sourcePath: "src/index.tsx" },
     { route: "/store", key: "store", component: "StorePage", access: "protected", area: "store", sourcePath: "src/index.tsx" },
+    { route: "/download", key: "download", component: "DownloadPage", access: "protected", area: "store", sourcePath: "src/index.tsx" },
     { route: "/about", key: "about", component: "AboutPage", access: "protected", area: "information", sourcePath: "src/index.tsx" },
     { route: "/information", key: "information", component: "InformationPage", access: "protected", area: "information", sourcePath: "src/index.tsx" },
     { route: "/privacy-policy", key: "privacy-policy", component: "PrivacyPolicyPage", access: "protected", area: "information", sourcePath: "src/index.tsx" },
