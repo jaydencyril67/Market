@@ -133,6 +133,13 @@ async function main() {
         assert(["single", "sequence", "clarify"].includes(result.context.decision.mode), "decision mode should be valid");
         assert(result.context.decision.steps.length >= 1, "decision should contain at least one step");
     });
+    await testAsync("live-data fetch timestamps are human-readable and use the supplied timezone", async () => {
+        const bridge = { query: async (query) => ({ topic: query.topic, ok: true, data: { balance: 125.5 }, fetchedAt: "2026-10-10T10:00:00.000Z" }) };
+        const result = await (0, think_1.thinkLive)("check my balance", { runtimeClock: { now: "2026-10-10T10:00:00.000Z", timeZone: "Africa/Lagos", locale: "en-GB" } }, bridge);
+        assert(result.response.includes("Data retrieved"), "live response should use natural retrieval wording");
+        assert(result.response.includes("11:00:00"), "UTC fetch time should be shown in Africa/Lagos local time; got " + result.response);
+        assert(!result.response.includes("2026-10-10T10:00:00.000Z"), "raw ISO timestamps must not leak into the conversational reply");
+    });
     await testAsync("live balance reasoning never infers a missing financial value", async () => {
         const seen = [];
         const bridge = { query: async (query) => { seen.push(query); return { topic: query.topic, ok: true, data: { accountId: "account-1", unrelatedMetric: 500 }, fetchedAt: "2026-10-10T00:00:00Z" }; } };
