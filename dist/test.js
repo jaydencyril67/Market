@@ -49,9 +49,9 @@ async function main() {
     });
     test("conversation session retains context and can reset", () => {
         const session = new session_1.BrainSession();
-        session.ask("check bot abc123");
+        session.ask("open my bots");
         assert((session.history ?? []).length > 0, "first turn should enter session history");
-        session.ask("is it running?");
+        session.ask("open my portfolio");
         assert((session.history ?? []).length >= 2, "follow-up should be retained in history");
         session.reset();
         assert(session.history.length === 0, "reset should clear history");
