@@ -1,5 +1,6 @@
 import {intents} from "./intents/core";
 import {responses} from "./responses/core";
+import {composeIntentResponse} from "./responses/compose";
 import {BrainAction,BrainApiOperation,BrainContext,BrainResult,Intent} from "./types";
 import {synonyms} from "./language/synonyms";
 import {knowledge} from "./knowledge/app";
@@ -155,7 +156,7 @@ export function think(input:string,context:BrainContext={}):BrainResult{
   const plannedSteps=steps.map((step,index)=>`${index+1}. ${step.input}`);
   const response=decision.mode==="sequence"
    ? "I mapped your request into this sequence: "+plannedSteps.join("; ")+". I'll handle the first step only, then we should verify the visible result before continuing. I won't treat later steps as completed yet."
-   : chooseResponse(responsePool(first.intent),context.responseHistory??[],first.input||input);
+   : composeIntentResponse(first.intent,first.action,first.input||input,context);
   return{intent:first.intent,confidence:first.confidence,response,action:first.action,normalized:normalize(input),alternatives:steps.map(s=>s.intent),needsClarification:false,entities:context.entities??{},context:{...context,lastIntent:first.intent,lastTarget:first.action.type==="navigate"?first.action.target:context.lastTarget,history:[...(context.history??[]),normalize(input)].slice(-10),responseHistory:rememberResponse(context,response),decision}};
  }
  const normalized=normalize(input);const entities=extractEntities(input,context.entities);const references=resolveReferences(input,context,entities);
@@ -274,7 +275,7 @@ export function think(input:string,context:BrainContext={}):BrainResult{
  }
  const response=action.type==="api"
   ?"I prepared a bot operation for review. Nothing has been changed yet. Check the bot and details in the confirmation panel, then confirm to send the request to CryBots."
-  :chooseResponse(responsePool(best.intent.id),context.responseHistory??[],input);
+  :composeIntentResponse(best.intent.id,action,input,context);
  const nextContext={...context,lastIntent:best.intent.id,lastTarget:action.type==="navigate"?action.target:context.lastTarget,lastKnowledgeId:context.lastKnowledgeId,lastKnowledgeTopic:context.lastKnowledgeTopic,activeGoal:context.activeGoal,goalTopics:context.goalTopics,history:[...(context.history??[]),normalized].slice(-10),responseHistory:rememberResponse(context,response),pendingIntent:null,entities,references};
  return{intent:best.intent.id,confidence:best.confidence,response,action,normalized,alternatives:alternatives.map(x=>x.intent.id),needsClarification:false,entities,context:nextContext};
 }
