@@ -23,37 +23,52 @@ export function composeIntentResponse(intentId:string,action:BrainAction,input:s
  const seed=[intentId,input,...(context.history??[]).slice(-3)].join("|");
  const target=action.type==="navigate"?pageLabel(action.target,context):"";
  if(intentId==="greeting"){
-  return choose(["What would you like to work through?","What are you trying to get done?","What should we look into first?","What do you need a hand with?"],seed);
+  const openings=["What would you like to","What are you trying to","What should we"];
+  const endings=["work through","get done","look into first"];
+  return choose(openings,seed)+" "+choose(endings,seed+"-end")+"?";
  }
  if(action.type==="navigate"){
   const lead=choose(["Opening","Taking you to","Heading to","Bringing up"],seed);
   return lead+" "+target+".";
  }
- if(action.type==="back")return choose(["Moving back one page.","Returning to the previous page.","Going back in the current navigation history."],seed);
- if(action.type==="forward")return choose(["Moving forward one page.","Going to the next page in navigation history.","Continuing forward through the current page history."],seed);
+ if(action.type==="back")return "Moving "+choose(["back one page","to the previous page","one step back"],seed)+".";
+ if(action.type==="forward")return "Moving "+choose(["forward one page","to the next page in history","one step forward"],seed)+".";
  if(action.type==="scroll_page"){
-  const direction=action.direction==="up"?"up":"down";
-  const position=action.position;
-  if(position)return choose(["Moving to the "+position+" of the page.","Taking the page to its "+position+"."],seed);
-  return choose(["Scrolling "+direction+".","Moving the page "+direction+".","Adjusting the page view "+direction+"."],seed);
+  const destination=action.position?" to the "+action.position:"";
+  return "Moving the page "+action.direction+destination+".";
  }
- if(action.type==="scroll_nowbar")return choose(["Moving the navigation bar "+action.direction+".","Shifting the navigation bar "+action.direction+"."],seed);
- if(action.type==="expand_nowbar")return choose(["Expanding the navigation bar.","Showing the expanded navigation options."],seed);
- if(action.type==="collapse_nowbar")return choose(["Collapsing the navigation bar.","Hiding the expanded navigation options."],seed);
- if(action.type==="click")return "I’ve matched the visible control "+JSON.stringify(action.target)+" to your request. The app still needs to confirm the resulting state.";
- if(action.type==="api")return "The "+action.operation.replace(/_/g," ")+" request is prepared for review; no change should be treated as complete until the app confirms it.";
+ if(action.type==="scroll_nowbar")return "Shifting the navigation bar "+action.direction+".";
+ if(action.type==="expand_nowbar")return "Expanding the navigation bar to expose more options.";
+ if(action.type==="collapse_nowbar")return "Collapsing the navigation bar to reduce the visible options.";
+ if(action.type==="click")return "I matched the visible control "+JSON.stringify(action.target)+" to your request. The app must confirm the resulting state before I can report completion.";
+ if(action.type==="api")return "The "+normalizeLabel(action.operation)+" operation is prepared for review. No change is complete until the app confirms it.";
  if(intentId==="help"){
   const features=(context.discoveredFeatures??[]).filter(feature=>feature.verified).slice(0,5).map(feature=>feature.name);
-  const available=features.length?features.join(", "):"the supported pages and controls";
-  return "I can help interpret your request, navigate to a supported feature, and work with connected data when available. The current verified feature map includes "+available+".";
+  const available=features.length?features.join(", "):"the supported pages, controls, and connected data";
+  return "I can interpret requests, navigate supported features, and work with connected data when available. Verified features currently include "+available+".";
  }
  if(action.type==="none"&&intent){
-  const description=intent.description.replace(/^User /i,"").replace(/[.]$/,"");
-  return choose(["I interpreted that as: "+description+".","The closest supported interpretation is: "+description+".","I matched your request to this intent: "+description+"."],seed);
+  const description=intent.description.replace(/[.]$/,"");
+  return "I interpreted your request as "+description+".";
  }
- return choose(["I couldn’t map that request to a supported action yet. Add the page, item, or outcome you mean and I can narrow it down.","I need a clearer target before choosing an action. Mention the feature or result you want, and I’ll reassess it.","I haven’t selected an action because the request doesn’t identify a supported target clearly enough."],seed);
+ const request=input.trim()? " (“"+input.trim()+"”)":"";
+ return "I couldn't map that request"+request+" to a supported action. Specify the feature, item, or outcome you want me to work with.";
 }
 
+export function composeClarificationResponse(kind:"unclear"|"fallback",input:string,context:BrainContext={}):string {
+ const normalized=input.trim();
+ const reference=/\b(that|this|it|again|same|there|then|yes|no|okay|ok)\b/i.test(normalized);
+ const recentTarget=context.lastTarget?pageLabel(context.lastTarget,context):"";
+ const request=normalized?" (“"+normalized+"”)":"";
+ if(kind==="unclear"){
+  const focus=reference&&recentTarget?"the reference to "+recentTarget:"the intended action";
+  const contextNote=recentTarget?" The most recent destination I know is "+recentTarget+".":"";
+  return "I couldn't determine "+focus+" from your request"+request+"."+contextNote+" Identify the page, item, or outcome you mean so I can continue without guessing.";
+ }
+ const available=(context.discoveredFeatures??[]).filter(feature=>feature.verified).slice(0,5).map(feature=>feature.name);
+ const capability=available.length?" Current verified features include "+available.join(", ")+".":"";
+ return "I couldn't match your request"+request+" to a supported capability. Describe the result you want, and I'll match it against the available features and actions."+capability;
+}
 
 export function composeGoalResponse(goalId:string,topics:string[],target:string,input:string,context:BrainContext={}):string {
  const seed=[goalId,input,...(context.history??[]).slice(-4)].join("|");
