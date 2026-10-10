@@ -49,6 +49,18 @@ async function main() {
             assert(Array.isArray(result.alternatives), "alternatives should be an array for input: " + input);
         }
     });
+    test("verified product guidance preserves factual safety details", () => {
+        const result = (0, brain_1.think)("how do i deposit");
+        assert(result.response.toLowerCase().includes("network"), "deposit guidance should preserve asset/network safety detail");
+        assert(result.response.toLowerCase().includes("address"), "deposit guidance should preserve address verification detail");
+        assert(result.action.type === "navigate" && result.action.target === "/deposit", "verified deposit guidance should use the verified deposit route");
+    });
+    test("verified runtime feature metadata changes the navigation response", () => {
+        const context = { discoveredFeatures: [{ id: "bot-center", name: "Bot Command Center", route: "/bots", description: "Manage bots and inspect their current state.", keywords: ["my bots", "bot management"], verified: true }] };
+        const result = (0, brain_1.think)("open my bots", context);
+        assert(result.response.includes("Bot Command Center") || result.response.includes("Manage bots"), "reply should use verified runtime feature metadata");
+        assert(result.action.type === "navigate" && result.action.target === "/bots", "runtime feature should resolve to its verified route");
+    });
     test("a balance request resolves to the balance intent", () => {
         const result = (0, brain_1.think)("check my balance");
         assert(result.intent === "balance", "balance intent should win for a direct balance request");
@@ -77,6 +89,12 @@ async function main() {
         assert(seen.length === 1 && seen[0].topic === "account-state", "balance request should query account-state data");
         assert(result.response.toLowerCase().includes("cannot be inferred") || result.response.toLowerCase().includes("cannot infer") || result.response.toLowerCase().includes("won't guess"), "response should explain that missing balance cannot be inferred");
         assert(!result.response.includes("500"), "unrelated numeric data must not be presented as a balance");
+    });
+    await testAsync("webhook configuration is not misreported as successful delivery", async () => {
+        const bridge = { query: async (query) => ({ topic: query.topic, ok: true, data: { webhooks: [{ name: "Primary endpoint", enabled: true, url: "https://hooks.example.test/crybots" }] } }) };
+        const result = await (0, think_1.thinkLive)("show webhooks", {}, bridge);
+        assert(result.response.includes("Primary endpoint"), "summary should use the returned webhook configuration");
+        assert(!/delivered successfully|delivery succeeded|successfully delivered/i.test(result.response), "enabled configuration must not be reported as proof of delivery");
     });
     await testAsync("live data failures identify the unavailable source without implying success", async () => {
         const bridge = { query: async (query) => ({ topic: query.topic, ok: false, data: null, message: "service timeout" }) };
