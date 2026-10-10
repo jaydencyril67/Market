@@ -65,7 +65,7 @@ const asksAboutCurrentPage=(input:string)=>/\b(what can i do here|what can i do 
 const asksAboutBalance=(input:string)=>{
  const text=normalize(input);
  if(/\b(withdraw|cash out|transfer|send|deposit|buy|sell|activate|deactivate)\b/.test(text))return false;
- return /\b(usdt balance|balance of usdt|balance in usdt|account balance|available balance|my balance|show my balance|check my balance|check balance|show my usdt balance|check my usdt balance|what is my balance|what s my balance|what is my usdt balance|what s my usdt balance|how much usdt do i have|how much do i have|how much balance do i have)\b/.test(text);
+ return /\\b(usdt balance|balance of usdt|balance in usdt|account balance|available balance|current balance|my current balance|my balance|show my balance|tell me my balance|check my balance|check balance|show my usdt balance|check my usdt balance|what is my (current )?balance|what s my (current )?balance|what is my usdt balance|what s my usdt balance|how much usdt do i have|how much do i have|how much balance do i have)\\b/.test(text);
 };
 const answerFromRuntimePage=(context:BrainContext)=>{
  const snapshot=context.runtimePageSnapshot;
