@@ -107,6 +107,15 @@ async function main():Promise<void>{
   assert(!result.response.includes("500"),"unrelated numeric data must not be presented as a balance");
  });
 
+ await testAsync("bot performance assessment states the evidence limit even when profit-like fields exist",async()=>{
+  const topics:string[]=[];
+  const bridge:LiveCryBotsBridge={query:async query=>{topics.push(query.topic);return query.topic==="bots"?{topic:query.topic,ok:true,data:{investments:[{botId:"BOT-9",status:"active",profit:99}]}}:{topic:query.topic,ok:true,data:{transactions:[]}};}};
+  const result=await thinkLive("which bots are profitable",{},bridge);
+  assert(topics.includes("bots")&&topics.includes("transactions"),"performance assessment should request bot and transaction evidence");
+  assert(result.response.toLowerCase().includes("do not establish profitability"),"summary must state that status/counts alone do not prove profitability");
+  assert(result.response.includes("BOT-9")||result.response.includes("active or activating investments"),"summary should disclose which available evidence was returned");
+ });
+
  await testAsync("webhook configuration is not misreported as successful delivery",async()=>{
   const bridge:LiveCryBotsBridge={query:async query=>({topic:query.topic,ok:true,data:{webhooks:[{name:"Primary endpoint",enabled:true,url:"https://hooks.example.test/crybots"}]}})};
   const result=await thinkLive("show webhooks",{},bridge);
