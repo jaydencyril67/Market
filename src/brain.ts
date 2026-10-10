@@ -1,6 +1,6 @@
 import {intents} from "./intents/core";
 
-import {composeIntentResponse,composeGoalResponse,composeClarificationResponse} from "./responses/compose";
+import {composeIntentResponse,composeGoalResponse,composeClarificationResponse,composeApiClarification,composePreparedApiResponse} from "./responses/compose";
 import {BrainAction,BrainApiOperation,BrainContext,BrainResult,Intent} from "./types";
 import {synonyms} from "./language/synonyms";
 import {knowledge} from "./knowledge/app";
@@ -236,23 +236,18 @@ export function think(input:string,context:BrainContext={}):BrainResult{
   const amountMatch=input.match(/\b(?:with|amount(?:\s+of)?|for)\s+(?:\$|usdt\s+|usd\s+)?([0-9]+(?:\.[0-9]+)?)(?:\s*(?:usdt|usd))?\b/i);
   const amount=amountMatch?.[1]?Number(amountMatch[1]):NaN;
   const directCommand=/^(?:please\s+)?(?:activate|start|turn on|deactivate|stop|turn off|withdraw)\b/i.test(input.trim());
-  if(!directCommand){
-   apiClarification="I can prepare this through CryBots’ API, but I need to distinguish a direct command from a how-to question. To submit a request for review, phrase it directly, for example: “activate bot BOT123 with 50 USDT.” No operation has been sent.";
-  }else if(!botId){
-   apiClarification="I can prepare that through CryBots’ bot API, but I need the exact bot ID. Please repeat the request with the bot ID, for example: “activate bot BOT123 with 50 USDT.” No operation has been sent.";
-  }else if((operation==="bot_activate"||operation==="bot_withdraw")&&(!Number.isFinite(amount)||amount<=0)){
-   apiClarification="I found the bot request, but I need a valid USDT amount. Please repeat it with the bot ID and amount, for example: “"+(operation==="bot_activate"?"activate":"withdraw from")+" bot "+botId+" with 50 USDT.” No operation has been sent.";
-  }else{
-   action={type:"api",operation,target:botId,parameters:operation==="bot_deactivate"?{}:{amount:String(amount)},requiresConfirmation:true};
-  }
+  if(!directCommand)apiClarification=composeApiClarification("not-direct",operation);
+  else if(!botId)apiClarification=composeApiClarification("missing-id",operation);
+  else if((operation==="bot_activate"||operation==="bot_withdraw")&&(!Number.isFinite(amount)||amount<=0))apiClarification=composeApiClarification("missing-amount",operation,botId);
+  else action={type:"api",operation,target:botId,parameters:operation==="bot_deactivate"?{}:{amount:String(amount)},requiresConfirmation:true};
  }
  if(apiClarification){
   const response=apiClarification;
-  const nextContext={...context,lastIntent:best.intent.id,history:[...(context.history??[]),normalized].slice(-10),responseHistory:rememberResponse(context,response),pendingIntent:best.intent.id,entities};
+ const nextContext={...context,lastIntent:best.intent.id,history:[...(context.history??[]),normalized].slice(-10),responseHistory:rememberResponse(context,response),pendingIntent:best.intent.id,entities};
   return{intent:best.intent.id,confidence:best.confidence,response,action:{type:"none"},normalized,alternatives:alternatives.map(x=>x.intent.id),needsClarification:true,entities,context:nextContext};
  }
  const response=action.type==="api"
-  ?"I prepared a bot operation for review. Nothing has been changed yet. Check the bot and details in the confirmation panel, then confirm to send the request to CryBots."
+  ?composePreparedApiResponse(action.operation,action.target)
   :composeIntentResponse(best.intent.id,action,input,context);
  const nextContext={...context,lastIntent:best.intent.id,lastTarget:action.type==="navigate"?action.target:context.lastTarget,lastKnowledgeId:context.lastKnowledgeId,lastKnowledgeTopic:context.lastKnowledgeTopic,activeGoal:context.activeGoal,goalTopics:context.goalTopics,history:[...(context.history??[]),normalized].slice(-10),responseHistory:rememberResponse(context,response),pendingIntent:null,entities,references};
  return{intent:best.intent.id,confidence:best.confidence,response,action,normalized,alternatives:alternatives.map(x=>x.intent.id),needsClarification:false,entities,context:nextContext};
