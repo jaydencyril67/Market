@@ -165,7 +165,7 @@ function reasonOverLiveData(input:string,live:LiveDataResult,timeZone="UTC"):str
    }
   }
   const summary=explicitBalanceSummary(data);
-  return summary?report("Current account data",[["reported balances",summary]]):"I retrieved your account data, but it did not include a verified balance value, so I can't safely state your current balance.";
+  return summary?report("Current account data",[["reported balances",summary]]):"I retrieved your account data, but it did not include a verified balance value, so your balance cannot be inferred from the available data.";
  }
  if(live.topic==="market"&&Array.isArray(data)&&data.length&&/price|market|movers|change|symbol|trading/.test(query)){
   const rows=data.slice(0,5).map((x:any)=>{const item=asRecord(x);return item?facts([["symbol",item.symbol??item.asset??item.pair],["price",item.price??item.lastPrice??item.currentPrice],["24h change",item.change24h??item.priceChangePercent??item.changePercent],["currency",item.currency]]).join("; "):"";}).filter(Boolean);
