@@ -29,5 +29,6 @@ export type AppDiscoverySnapshot={
   version:string;
   updatedAt:string;
   features:BrainDiscoveredFeature[];
+  facts?:BrainRuntimeFact[];
 };
 
