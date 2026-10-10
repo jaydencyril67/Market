@@ -74,14 +74,14 @@ async function main():Promise<void>{
    action:{type:"api",operation:"bot_withdraw",target:"BOT123",parameters:{amount:"10"}},
    parameters:{amount:"10"},risk:"high",requiresConfirmation:true,status:"ready"
   };
-  let executions=0;
-  const executor=async()=>{executions++;return{commandId:command.id,status:"executed" as const,message:"accepted"};};
+  const executions={value:0};
+  const executor=async()=>{executions.value++;return{commandId:command.id,status:"executed" as const,message:"accepted"};};
   const blocked=await executeCommand(command,executor);
   assert(blocked.status==="rejected","unconfirmed sensitive command should be rejected");
-  assert(executions===0,"executor must not run before confirmation");
+  assert(executions.value===0,"executor must not run before confirmation");
   const approved=await executeCommand(command,executor,true);
   assert(approved.status==="executed","confirmed valid command should reach executor");
-  assert(executions===1,"executor should run exactly once after confirmation");
+  assert(executions.value===1,"executor should run exactly once after confirmation");
  });
 
  await testAsync("API execution refuses a missing bot identifier",async()=>{
