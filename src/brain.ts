@@ -138,8 +138,10 @@ export function think(input:string,context:BrainContext={}):BrainResult{
  const normalized=normalize(input);const entities=extractEntities(input,context.entities);const references=resolveReferences(input,context,entities);
  // Resolve elliptical commands only when the prior context gives one safe, concrete target.
  if(/^(do it again|do that again|repeat that|repeat it)$/.test(normalized)){
-  if(context.lastTarget&&/^\/[a-z0-9/_-]+$/i.test(context.lastTarget)){
-   const target=context.lastTarget;
+  const previousFact=[...(context.runtimeFacts??[]),...verifiedFacts].find(entry=>entry.id===context.lastKnowledgeId);
+  const previousTarget=context.lastTarget??previousFact?.route;
+  if(previousTarget&&/^\/[a-z0-9/_-]+$/i.test(previousTarget)){
+   const target=previousTarget;
    const label=target.replace(/^\//,"").replace(/[-_/]+/g," ").trim();
    const response="I can repeat the last known navigation request by opening "+label+".";
    return{intent:"context-repeat-navigation",confidence:.93,response,action:{type:"navigate",target},normalized,alternatives:[],needsClarification:false,entities,context:{...context,lastIntent:"navigation",history:[...(context.history??[]),normalized].slice(-10),responseHistory:rememberResponse(context,response),entities}};
