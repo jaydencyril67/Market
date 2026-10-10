@@ -91,7 +91,6 @@ function reasonOverLiveData(input:string,live:LiveDataResult):string|undefined{
       return ids.length?"Your active or activating bots are: "+ids.join(", ")+".":"You have "+active.length+" active or activating bot investment"+(active.length===1?"":"s")+".";
     }
     if(active.length===1&&/active|running|status/.test(text)){const id=active[0]?.botId;return id?"Bot "+id+" is currently active or activating.":live.message;}
-    return live.message;
   }
   if(live.topic==="webhooks"){
     const record=asRecord(data); const webhooks=Array.isArray(record?.webhooks)?record.webhooks:[];
