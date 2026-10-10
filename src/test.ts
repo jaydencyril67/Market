@@ -99,7 +99,7 @@ async function main():Promise<void>{
    {input:"open my bots",type:"navigate",target:"/bots"},
    {input:"open my portfolio",type:"navigate",target:"/portfolio"},
    {input:"show my webhooks",type:"navigate",target:"webhooks"},
-   {input:"show my transaction history",type:"navigate",target:"/transactions"}
+   {input:"show my transaction history",type:"navigate",target:"transactions"}
   ];
   for(const item of cases){
    const result=think(item.input);
