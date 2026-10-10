@@ -7,8 +7,8 @@ export type AppMapChange = {
   details: string;
 };
 
-const verifiedByRoute = (features: BrainDiscoveredFeature[]) =>
-  new Map(
+const verifiedByRoute = (features: BrainDiscoveredFeature[]): Map<string, BrainDiscoveredFeature> =>
+  new Map<string, BrainDiscoveredFeature>(
     features
       .filter((feature) =>
         feature &&
@@ -16,7 +16,7 @@ const verifiedByRoute = (features: BrainDiscoveredFeature[]) =>
         typeof feature.route === "string" &&
         /^\/[a-z0-9/_-]+$/i.test(feature.route)
       )
-      .map((feature) => [feature.route, feature]),
+      .map((feature): [string, BrainDiscoveredFeature] => [feature.route, feature]),
   );
 
 /**
