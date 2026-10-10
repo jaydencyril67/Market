@@ -2,6 +2,7 @@ import {BrainEntities,BrainResult} from "../types";
 import {LiveQuery,LiveTopic} from "./types";
 
 const topicByIntent:Record<string,LiveTopic|undefined>={
+  balance:"account-state",
   portfolio:"account-state",
   bot_status:"bots",
   bots:"bots",
