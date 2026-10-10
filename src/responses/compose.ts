@@ -1,5 +1,6 @@
 import {BrainAction,BrainContext} from "../types";
 import {intents} from "../intents/core";
+import {verifiedFacts} from "../knowledge/crybotsSource";
 
 /**
  * Builds ordinary assistant replies from the matched intent, the requested action,
@@ -51,4 +52,20 @@ export function composeIntentResponse(intentId:string,action:BrainAction,input:s
   return choose(["I interpreted that as: "+description+".","The closest supported interpretation is: "+description+".","I matched your request to this intent: "+description+"."],seed);
  }
  return choose(["I couldn’t map that request to a supported action yet. Add the page, item, or outcome you mean and I can narrow it down.","I need a clearer target before choosing an action. Mention the feature or result you want, and I’ll reassess it.","I haven’t selected an action because the request doesn’t identify a supported target clearly enough."],seed);
+}
+
+
+export function composeGoalResponse(goalId:string,topics:string[],target:string,input:string,context:BrainContext={}):string {
+ const seed=[goalId,input,...(context.history??[]).slice(-4)].join("|");
+ const facts=verifiedFacts.filter(fact=>topics.some(topic=>fact.topic===topic||fact.keywords.some(keyword=>keyword.toLowerCase().includes(topic.toLowerCase()))));
+ const featureNames=facts.filter(fact=>fact.route).slice(0,3).map(fact=>titleCase(fact.route!));
+ const guidance:Record<string,string[]> = {
+  "bot-performance":["Compare recorded results over the same period, then verify each bot’s status and related trade activity.","Use bot status and actual trade records together; activity alone does not establish profitability."],
+  "account-overview":["Compare holdings with recorded deposits, withdrawals, and transfers; these represent different parts of account activity.","Use live account records for exact values rather than estimating balances from transaction history."],
+  "webhook-troubleshooting":["Compare webhook configuration with delivery history and inspect the latest recorded result before deciding what failed.","A configured webhook does not prove that an event was delivered successfully."],
+  "account-security":["Review active sessions and integration permissions, and investigate anything you do not recognize.","Grant integrations only the permissions they need, and keep authentication codes and secrets private."]
+ };
+ const focus=choose(guidance[goalId]??["Use the available records to verify the current state before drawing a conclusion."],seed);
+ const evidence=featureNames.length?" Relevant areas include "+[...new Set(featureNames)].join(", ")+".":"";
+ return focus+evidence+" I can check connected records when they are available, but I won’t infer missing values or outcomes. We can start with "+pageLabel(target,context)+".";
 }
