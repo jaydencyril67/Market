@@ -193,7 +193,8 @@ export function think(input:string,context:BrainContext={}):BrainResult{
   }
  }
  if(detectedGoal){
-  return{intent:"goal:"+detectedGoal.id,confidence:.86,response:detectedGoal.response,action:{type:"navigate",target:detectedGoal.target},normalized,alternatives:[],needsClarification:false,entities,context:{...context,history:[...(context.history??[]),normalized].slice(-10),entities,activeGoal:detectedGoal.id,goalTopics:detectedGoal.topics,lastTarget:detectedGoal.target}};
+  const response=composeGoalResponse(detectedGoal.id,detectedGoal.topics,detectedGoal.target,input,context);
+  return{intent:"goal:"+detectedGoal.id,confidence:.86,response,action:{type:"navigate",target:detectedGoal.target},normalized,alternatives:[],needsClarification:false,entities,context:{...context,history:[...(context.history??[]),normalized].slice(-10),entities,activeGoal:detectedGoal.id,goalTopics:detectedGoal.topics,lastTarget:detectedGoal.target}};
  }
  if(context.lastKnowledgeId&&isContextualFollowUp(input)){
   const prior=(context.runtimeFacts?.length?context.runtimeFacts:verifiedFacts).find(entry=>entry.id===context.lastKnowledgeId);
