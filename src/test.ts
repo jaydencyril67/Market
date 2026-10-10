@@ -103,7 +103,7 @@ async function main():Promise<void>{
   ];
   for(const item of cases){
    const result=think(item.input);
-   assert(result.action.type===item.type&&result.action.target===item.target,"meaning mismatch for '"+item.input+"': got "+JSON.stringify(result.action));
+   assert(result.action.type==="navigate"&&result.action.target===item.target,"meaning mismatch for "+JSON.stringify(item.input)+": got "+JSON.stringify(result.action));
   }
   const unsafe=think("activate bot BOT-123");
   assert(unsafe.action.type==="none"&&unsafe.needsClarification,"a sensitive bot command without its required details must not be guessed into execution");
