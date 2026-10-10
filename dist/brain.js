@@ -14,7 +14,26 @@ const references_1 = require("./language/references");
 const decision_1 = require("./reasoning/decision");
 const planner_1 = require("./reasoning/planner");
 const executor_1 = require("./reasoning/executor");
-const normalize = (input) => input.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s-]/g, " ").replace(/\s+/g, " ").trim();
+const languageExpansions = {
+    "im": "i am", "ive": "i have", "ill": "i will", "id": "i would", "dont": "do not", "doesnt": "does not", "didnt": "did not",
+    "cant": "cannot", "couldnt": "could not", "wouldnt": "would not", "shouldnt": "should not", "wont": "will not", "isnt": "is not",
+    "arent": "are not", "wasnt": "was not", "werent": "were not", "whats": "what is", "wheres": "where is", "hows": "how is",
+    "thats": "that is", "theres": "there is", "lets": "let us", "wanna": "want to", "gonna": "going to", "gotta": "got to",
+    "lemme": "let me", "gimme": "give me", "pls": "please", "plz": "please", "u": "you", "ur": "your", "ya": "you", "rn": "right now",
+    "kinda": "kind of", "sorta": "sort of", "abt": "about", "bc": "because", "cuz": "because"
+};
+const commonCorrections = {
+    "balnce": "balance", "balace": "balance", "transection": "transaction", "transction": "transaction", "transacton": "transaction",
+    "webhok": "webhook", "webhokks": "webhooks", "wthdraw": "withdraw", "widraw": "withdraw", "withdrwal": "withdrawal",
+    "portfoli": "portfolio", "activte": "activate", "deactvate": "deactivate", "notifcation": "notification", "securty": "security",
+    "tranaction": "transaction", "transacions": "transactions", "botss": "bots"
+};
+const normalize = (input) => {
+    const base = input.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s-]/g, " ").replace(/\s+/g, " ").trim();
+    if (!base)
+        return "";
+    return base.split(" ").map(word => commonCorrections[word] ?? languageExpansions[word] ?? word).join(" ");
+};
 exports.normalize = normalize;
 const variants = (value) => { const n = (0, exports.normalize)(value); const out = new Set([n]); for (const [key, items] of Object.entries(synonyms_1.synonyms)) {
     if (items.includes(n) || key === n)
@@ -22,6 +41,7 @@ const variants = (value) => { const n = (0, exports.normalize)(value); const out
             out.add((0, exports.normalize)(item));
 } return [...out]; };
 const tokenSet = (text) => new Set((0, exports.normalize)(text).split(" ").filter(Boolean));
+const containsPhrase = (text, phrase) => Boolean(phrase) && (" " + (0, exports.normalize)(text) + " ").includes(" " + (0, exports.normalize)(phrase) + " ");
 const responsePool = (intentId) => { const map = { back: "back_success", forward: "forward_success", scroll: "scroll_success", scroll_nowbar: "acknowledgement", expand_nowbar: "acknowledgement", collapse_nowbar: "acknowledgement" }; return core_2.responses[map[intentId] ?? intentId] ?? core_2.responses.fallback; };
 const hashText = (value) => { let h = 2166136261; for (let i = 0; i < value.length; i++) {
     h ^= value.charCodeAt(i);
@@ -91,11 +111,11 @@ function score(input, intent) { const text = (0, exports.normalize)(input); if (
     const n = (0, exports.normalize)(p);
     if (text === n)
         score += .85;
-    else if (text.includes(n))
+    else if (containsPhrase(text, n))
         score += .58;
 } for (const k of intent.keywords) {
     const forms = variants(k);
-    if (forms.some(v => text.includes(v)))
+    if (forms.some(v => containsPhrase(text, v)))
         score += .18;
     score += typoBoost(text, forms);
 } for (const k of intent.keywords)
@@ -214,7 +234,7 @@ function think(input, context = {}) {
         const execution = (0, executor_1.compileExecution)(actionPlan, context.entities ?? {});
         decision.reason += " Action plan: " + actionPlan.status + ". Execution: " + execution.status + ". ";
         if (decision.mode === "clarify")
-            return { intent: null, confidence: Math.min(...steps.map(s => s.confidence)), response: failureResponse("unclear", input, context), action: { type: "none" }, normalized: (0, exports.normalize)(input), alternatives: steps.map(s => s.intent).filter(Boolean), needsClarification: true, entities: context.entities ?? {}, context: { ...context, decision, history: [...(context.history ?? []), (0, exports.normalize)(input)].slice(-10) } };
+            return { intent: null, confidence: Math.min(...steps.map(s => s.confidence)), response: failureResponse("unclear", input, context), action: { type: "none" }, normalized: (0, exports.normalize)(input), alternatives: steps.map(s => s.intent).filter(Boolean), needsClarification: true, entities: context.entities ?? {}, context: { ...context, decision, entities: (0, entities_1.extractEntities)(input, context.entities), references: steps.flatMap(step => step.references), history: [...(context.history ?? []), (0, exports.normalize)(input)].slice(-10) } };
         const first = steps[0];
         const plannedSteps = steps.map((step, index) => `${index + 1}. ${step.input}`);
         const response = decision.mode === "sequence"
@@ -385,6 +405,6 @@ function think(input, context = {}) {
     const response = action.type === "api"
         ? "I prepared a bot operation for review. Nothing has been changed yet. Check the bot and details in the confirmation panel, then confirm to send the request to CryBots."
         : chooseResponse(responsePool(best.intent.id), context.responseHistory ?? [], input);
-    const nextContext = { lastIntent: best.intent.id, lastTarget: action.type === "navigate" ? action.target : context.lastTarget, lastKnowledgeId: context.lastKnowledgeId, lastKnowledgeTopic: context.lastKnowledgeTopic, activeGoal: context.activeGoal, goalTopics: context.goalTopics, history: [...(context.history ?? []), normalized].slice(-10), responseHistory: rememberResponse(context, response), pendingIntent: null };
+    const nextContext = { ...context, lastIntent: best.intent.id, lastTarget: action.type === "navigate" ? action.target : context.lastTarget, lastKnowledgeId: context.lastKnowledgeId, lastKnowledgeTopic: context.lastKnowledgeTopic, activeGoal: context.activeGoal, goalTopics: context.goalTopics, history: [...(context.history ?? []), normalized].slice(-10), responseHistory: rememberResponse(context, response), pendingIntent: null, entities, references };
     return { intent: best.intent.id, confidence: best.confidence, response, action, normalized, alternatives: alternatives.map(x => x.intent.id), needsClarification: false, entities, context: nextContext };
 }
