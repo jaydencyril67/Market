@@ -140,6 +140,26 @@ export function think(input:string,context:BrainContext={}):BrainResult{
   return{intent:first.intent,confidence:first.confidence,response,action:first.action,normalized:normalize(input),alternatives:steps.map(s=>s.intent),needsClarification:false,entities:context.entities??{},context:{...context,lastIntent:first.intent,lastTarget:first.action.type==="navigate"?first.action.target:context.lastTarget,history:[...(context.history??[]),normalize(input)].slice(-10),responseHistory:rememberResponse(context,response),decision}};
  }
  const normalized=normalize(input);const entities=extractEntities(input,context.entities);const references=resolveReferences(input,context,entities);
+ const asksAboutAppMapChanges=/\\b(what changed in the app|what changed in crybots|what changed in crybots app|any new pages|new pages or controls|new controls|did the app change|did crybots change|app map updates|updated app map|how has the app changed|what did you discover|what have you discovered|adapt to app changes)\\b/.test(normalized);
+ if(asksAboutAppMapChanges){
+  const changes=context.appMapChanges??[];
+  let response:string;
+  if(!context.appMapCompared){
+   response="I loaded the latest verified CryBots app map, but I don't have a previous map snapshot in this conversation to compare against. I won't guess which pages or controls are new.";
+  }else if(!changes.length){
+   response="I compared the latest verified CryBots app map with the previous snapshot available to Brain. No route, feature name, description, or keyword changes were detected.";
+  }else{
+   const added=changes.filter(change=>change.kind==="added");
+   const changed=changes.filter(change=>change.kind==="changed");
+   const removed=changes.filter(change=>change.kind==="removed");
+   const parts:string[]=[];
+   if(added.length)parts.push("New verified features: "+added.map(change=>change.name+" ("+change.route+")").join(", "));
+   if(changed.length)parts.push("Updated feature knowledge: "+changed.map(change=>change.name+" ("+change.route+": "+change.details+")").join("; "));
+   if(removed.length)parts.push("No longer present in the verified map: "+removed.map(change=>change.name+" ("+change.route+")").join(", ")+". I will not navigate to these routes.");
+   response="I compared the latest verified app map with the previous snapshot. "+parts.join(". ")+".";
+  }
+  return{intent:"app-map-adaptation",confidence:.96,response,action:{type:"none"},normalized,alternatives:[],needsClarification:false,entities,context:{...context,history:[...(context.history??[]),normalized].slice(-10),entities}};
+ }
  if(asksAboutBalance(input)){
   const response="I’ll open Details to check your current USDT balance.";
   return{intent:"balance",confidence:.98,response,action:{type:"navigate",target:"details"},normalized,alternatives:[],needsClarification:false,entities,context:{...context,lastIntent:"balance",lastTarget:"details",history:[...(context.history??[]),normalized].slice(-10),responseHistory:rememberResponse(context,response),entities}};
