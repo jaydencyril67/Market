@@ -66,15 +66,32 @@ const detectGoal=(input:string):GoalGuide|undefined=>{
 const isGoalFollowUp=(input:string)=>/^(what should i check|what should i look at|what next|what do i check next|which one is best|which is best|which one is worst|why is it losing|how do i know|how can i tell|what does that mean|how do i improve|what should i do|and what about the results|what about my data|what do the records say|what should i compare|can you check that|check it for me|then what|what about now)$/.test(normalize(input));
 const asksAboutCurrentPage=(input:string)=>/\b(what can i do here|what can i do on this page|what can you do here|what buttons are available|which buttons are available|what controls are available|what controls do i have|what is on this page|what can you see here|show me the controls|what actions are available)\b/.test(normalize(input));
 const answerFromRuntimePage=(context:BrainContext)=>{
- const page=(context.runtimePage||"").replace(/^\//,"").replace(/[-_/]+/g," ").trim()||"current page";
+ const snapshot=context.runtimePageSnapshot;
+ const page=(snapshot?.title||context.runtimePage||"current page").replace(/^\\//,"").replace(/[-_/]+/g," ").trim()||"current page";
+ const headings=(snapshot?.headings??[]).filter(Boolean).slice(0,8);
+ const states=(snapshot?.states??[]).filter(Boolean).slice(0,8);
  const controls=(context.runtimeControls??[]).filter(control=>control&&typeof control.label==="string"&&control.label.trim()).slice(0,12);
- if(!controls.length)return "I can identify the current page as "+page+", but I couldn't read any visible controls from the app just now.";
- const enabled=controls.filter(control=>!control.disabled).map(control=>control.label);
- const disabled=controls.filter(control=>control.disabled).map(control=>control.label);
- let response="On "+page+", I can currently see these controls: "+enabled.join("; ")+".";
- if(disabled.length)response+=" These controls appear disabled: "+disabled.join("; ")+".";
- response+=" This is a live view of the visible interface, not a guarantee that every action is available or that an action has succeeded.";
- return response;
+ const forms=(snapshot?.forms??[]).slice(0,5);
+ const parts:string[]=[];
+ parts.push("I inspected the current visible interface on "+page+".");
+ if(headings.length)parts.push("Page sections: "+headings.join("; ")+".");
+ if(forms.length){
+  const descriptions=forms.map(form=>{
+   const fields=form.fields.slice(0,8).map(field=>field.label+" ("+field.type+(field.required?", required":"")+(field.disabled?", disabled":"")+(field.hasValue?", already filled":"")+")");
+   return form.label+": "+(fields.join(", ")||"no readable fields");
+  });
+  parts.push("Forms and fields: "+descriptions.join("; ")+". I read field labels and metadata only, not the entered values.");
+ }
+ if(states.length)parts.push("Visible status or selected-state indicators: "+states.join("; ")+".");
+ if(controls.length){
+  const enabled=controls.filter(control=>!control.disabled).map(control=>control.label);
+  const disabled=controls.filter(control=>control.disabled).map(control=>control.label);
+  if(enabled.length)parts.push("Enabled visible controls: "+enabled.join("; ")+".");
+  if(disabled.length)parts.push("Disabled visible controls: "+disabled.join("; ")+".");
+ }
+ if(!snapshot&&!controls.length)return "I can identify the current page as "+page+", but I couldn't read its visible structure just now.";
+ parts.push("This snapshot describes what is currently visible; it does not prove a backend operation succeeded or reveal hidden/private data.");
+ return parts.join(" ");
 };
 const matchDiscoveredFeature=(input:string,features:NonNullable<BrainContext["discoveredFeatures"]>)=>{
  const text=normalize(input);
