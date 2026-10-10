@@ -3,6 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.composeIntentResponse = composeIntentResponse;
 exports.composeClarificationResponse = composeClarificationResponse;
 exports.composeGoalResponse = composeGoalResponse;
+exports.composeApiClarification = composeApiClarification;
+exports.composePreparedApiResponse = composePreparedApiResponse;
 const core_1 = require("../intents/core");
 const crybotsSource_1 = require("../knowledge/crybotsSource");
 /**
@@ -95,4 +97,26 @@ function composeGoalResponse(goalId, topics, target, input, context = {}) {
     const caution = " Keep in mind that " + profile.caution + ".";
     const evidence = featureNames.length ? " Relevant verified areas include " + [...new Set(featureNames)].join(", ") + "." : "";
     return instruction + caution + evidence + " I can use connected records when available and won't infer missing values or outcomes. The relevant starting point is " + pageLabel(target, context) + ".";
+}
+function composeApiClarification(reason, operation, botId) {
+    const operationLabel = normalizeLabel(operation);
+    const examples = {
+        "bot_activate": "activate bot BOT123 with 50 USDT",
+        "bot_deactivate": "deactivate bot BOT123",
+        "bot_withdraw": "withdraw from bot BOT123 with 50 USDT"
+    };
+    const example = examples[operation] ?? operationLabel + " for bot BOT123";
+    const request = reason === "not-direct"
+        ? "State the operation as a direct command rather than a question about how it works."
+        : reason === "missing-id"
+            ? "Include the exact bot ID so the target can be validated."
+            : "Include a valid positive USDT amount with the bot ID.";
+    const tailored = reason === "missing-amount" && botId
+        ? " For example: " + (operation === "bot_deactivate" ? "deactivate bot " + botId : operationLabel + " bot " + botId + " with 50 USDT") + "."
+        : " For example: " + example + ".";
+    return request + tailored + " No operation has been sent.";
+}
+function composePreparedApiResponse(operation, target) {
+    const details = [normalizeLabel(operation), target ? "target " + target : undefined].filter(Boolean).join(" for ");
+    return "Prepared for confirmation: " + details + ". Review the operation and its parameters in the confirmation panel; it has not been submitted or completed.";
 }
