@@ -67,7 +67,7 @@ const isGoalFollowUp=(input:string)=>/^(what should i check|what should i look a
 const asksAboutCurrentPage=(input:string)=>/\b(what can i do here|what can i do on this page|what can you do here|what buttons are available|which buttons are available|what controls are available|what controls do i have|what is on this page|what can you see here|show me the controls|what actions are available)\b/.test(normalize(input));
 const answerFromRuntimePage=(context:BrainContext)=>{
  const snapshot=context.runtimePageSnapshot;
- const page=(snapshot?.title||context.runtimePage||"current page").replace(/^\\//,"").replace(/[-_/]+/g," ").trim()||"current page";
+ const page=(snapshot?.title||context.runtimePage||"current page").replace(/^\//,"").replace(/[-_/]+/g," ").trim()||"current page";
  const headings=(snapshot?.headings??[]).filter(Boolean).slice(0,8);
  const states=(snapshot?.states??[]).filter(Boolean).slice(0,8);
  const controls=(context.runtimeControls??[]).filter(control=>control&&typeof control.label==="string"&&control.label.trim()).slice(0,12);
