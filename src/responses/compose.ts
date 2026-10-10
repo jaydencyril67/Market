@@ -74,13 +74,17 @@ export function composeGoalResponse(goalId:string,topics:string[],target:string,
  const seed=[goalId,input,...(context.history??[]).slice(-4)].join("|");
  const facts=verifiedFacts.filter(fact=>topics.some(topic=>fact.topic===topic||fact.keywords.some(keyword=>keyword.toLowerCase().includes(topic.toLowerCase()))));
  const featureNames=facts.filter(fact=>fact.route).slice(0,3).map(fact=>titleCase(fact.route!));
- const guidance:Record<string,string[]> = {
-  "bot-performance":["Compare recorded results over the same period, then verify each bot’s status and related trade activity.","Use bot status and actual trade records together; activity alone does not establish profitability."],
-  "account-overview":["Compare holdings with recorded deposits, withdrawals, and transfers; these represent different parts of account activity.","Use live account records for exact values rather than estimating balances from transaction history."],
-  "webhook-troubleshooting":["Compare webhook configuration with delivery history and inspect the latest recorded result before deciding what failed.","A configured webhook does not prove that an event was delivered successfully."],
-  "account-security":["Review active sessions and integration permissions, and investigate anything you do not recognize.","Grant integrations only the permissions they need, and keep authentication codes and secrets private."]
+ const profiles:Record<string,{subject:string;method:string;evidence:string;caution:string}> = {
+  "bot-performance":{subject:"bot performance",method:"compare",evidence:"recorded results over the same time period, bot status, and related trade activity",caution:"activity or an active status alone does not establish profitability"},
+  "account-overview":{subject:"your account activity",method:"reconcile",evidence:"portfolio holdings with recorded deposits, withdrawals, and transfers",caution:"transaction history alone cannot establish your current balance"},
+  "webhook-troubleshooting":{subject:"webhook delivery",method:"inspect",evidence:"the configured endpoint, enabled state, and latest available delivery records",caution:"an enabled configuration does not prove successful delivery"},
+  "account-security":{subject:"account security",method:"review",evidence:"active sessions and integration permissions for unfamiliar access",caution:"authentication codes and integration secrets should remain private"}
  };
- const focus=choose(guidance[goalId]??["Use the available records to verify the current state before drawing a conclusion."],seed);
- const evidence=featureNames.length?" Relevant areas include "+[...new Set(featureNames)].join(", ")+".":"";
- return focus+evidence+" I can check connected records when they are available, but I won’t infer missing values or outcomes. We can start with "+pageLabel(target,context)+".";
+ const profile=profiles[goalId]??{subject:"the requested task",method:"verify",evidence:"the available records and current feature state",caution:"missing data should not be treated as proof"};
+ const featureNames=facts.filter(fact=>fact.route).slice(0,3).map(fact=>titleCase(fact.route!));
+ const opening=choose(["For "+profile.subject+",","To investigate "+profile.subject+",","A useful way to approach "+profile.subject+" is to"],seed);
+ const instruction=opening+" "+profile.method+" "+profile.evidence+".";
+ const caution=" Keep in mind that "+profile.caution+".";
+ const evidence=featureNames.length?" Relevant verified areas include "+[...new Set(featureNames)].join(", ")+".":"";
+ return instruction+caution+evidence+" I can use connected records when available and won't infer missing values or outcomes. The relevant starting point is "+pageLabel(target,context)+".";
 }
