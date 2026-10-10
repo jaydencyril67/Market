@@ -4,6 +4,7 @@ import {BrainContext,BrainResult,Intent} from "./types";
 import {synonyms} from "./language/synonyms";
 import {knowledge} from "./knowledge/app";
 import {findKnowledge,findVerifiedKnowledge} from "./knowledge/matcher";
+import {verifiedFacts} from "./knowledge/crybotsSource";
 import {patterns} from "./language/patterns";
 import {extractEntities} from "./language/entities";
 import {resolveReferences} from "./language/references";
@@ -41,6 +42,7 @@ function typoBoost(text:string,forms:string[]){let boost=0;for(const word of tex
 function patternScore(input:string,intentId:string){const text=normalize(input);let best=0;for(const item of patterns.filter(x=>x.intent===intentId))for(const p of item.patterns){const parts=p.split("*").map(normalize);if(parts.length===1){if(text.includes(parts[0]))best=Math.max(best,item.weight);}else{const first=parts[0],last=parts[1];if(text.startsWith(first)&&text.endsWith(last)&&text.length>=first.length+last.length)best=Math.max(best,item.weight);}}return best;}
 function score(input:string,intent:Intent){const text=normalize(input);if(!text)return 0;let score=0;for(const p of intent.phrases){const n=normalize(p);if(text===n)score+=.85;else if(text.includes(n))score+=.58;}for(const k of intent.keywords){const forms=variants(k);if(forms.some(v=>text.includes(v)))score+=.18;score+=typoBoost(text,forms);}for(const k of intent.keywords)if(tokenSet(text).has(normalize(k)))score+=.08;return Math.min(.99,score+patternScore(input,intent.id)+(intent.priority??0));}
 const rememberResponse=(context:BrainContext,response:string)=>[...(context.responseHistory??[]),response].slice(-8);
+const isContextualFollowUp=(input:string)=>/^(tell me more|explain (that|it|this)|what do you mean|how does (that|it|this) work|why is that|go deeper|more details|continue|and then|what about it|what about that|elaborate|can you explain more|give me more details|say more)$/.test(normalize(input));
 export function think(input:string,context:BrainContext={}):BrainResult{
  const requests=splitRequests(input);
  if(requests.length>1){
@@ -50,8 +52,18 @@ export function think(input:string,context:BrainContext={}):BrainResult{
   const first=steps[0];const response=chooseResponse(responsePool(first.intent),context.responseHistory??[],first.input||input);
   return{intent:first.intent,confidence:first.confidence,response,action:first.action,normalized:normalize(input),alternatives:steps.map(s=>s.intent),needsClarification:false,entities:context.entities??{},context:{...context,lastIntent:first.intent,lastTarget:first.action.type==="navigate"?first.action.target:context.lastTarget,history:[...(context.history??[]),normalize(input)].slice(-10),responseHistory:rememberResponse(context,response),decision}};
  }
- const normalized=normalize(input);const entities=extractEntities(input,context.entities);const references=resolveReferences(input,context,entities);const verifiedHit=findVerifiedKnowledge(input);const knowledgeHit=findKnowledge(input,knowledge);
- if(verifiedHit&&verifiedHit.score>=.52){const nextContext={...context,history:[...(context.history??[]),normalized].slice(-10),pendingIntent:null};return{intent:`verified:${verifiedHit.entry.id}`,confidence:verifiedHit.score,response:verifiedHit.entry.answer,action:verifiedHit.entry.route?{type:"navigate",target:verifiedHit.entry.route}:{type:"none"},normalized,alternatives:[],needsClarification:false,entities,context:{...nextContext,entities}};}
+ const normalized=normalize(input);const entities=extractEntities(input,context.entities);const references=resolveReferences(input,context,entities);
+ if(context.lastKnowledgeId&&isContextualFollowUp(input)){
+  const prior=verifiedFacts.find(entry=>entry.id===context.lastKnowledgeId);
+  if(prior){
+   const related=verifiedFacts.find(entry=>entry.topic===prior.topic&&entry.id!==prior.id);
+   const selected=related??prior;
+   const response=related?"A little more on "+prior.topic.replace(/-/g," ")+": "+related.answer:"Here is the context I was referring to: "+prior.answer;
+   return{intent:`verified:${selected.id}`,confidence:.88,response,action:{type:"none"},normalized,alternatives:[],needsClarification:false,entities,context:{...context,history:[...(context.history??[]),normalized].slice(-10),entities,lastKnowledgeId:selected.id,lastKnowledgeTopic:selected.topic}};
+  }
+ }
+ const verifiedHit=findVerifiedKnowledge(input);const knowledgeHit=findKnowledge(input,knowledge);
+ if(verifiedHit&&verifiedHit.score>=.52){const nextContext={...context,history:[...(context.history??[]),normalized].slice(-10),pendingIntent:null};return{intent:`verified:${verifiedHit.entry.id}`,confidence:verifiedHit.score,response:verifiedHit.entry.answer,action:verifiedHit.entry.route?{type:"navigate",target:verifiedHit.entry.route}:{type:"none"},normalized,alternatives:[],needsClarification:false,entities,context:{...nextContext,entities,lastKnowledgeId:verifiedHit.entry.id,lastKnowledgeTopic:verifiedHit.entry.topic}};}
  if(knowledgeHit&&knowledgeHit.score>=.55){const nextContext={...context,history:[...(context.history??[]),normalized].slice(-10),pendingIntent:null};return{intent:`knowledge:${knowledgeHit.entry.id}`,confidence:knowledgeHit.score,response:knowledgeHit.entry.answer,action:{type:"none"},normalized,alternatives:[],needsClarification:false,entities,context:{...nextContext,entities,references}};}
  const ranked=intents.map(intent=>({intent,confidence:score(input,intent),action:intent.action})).sort((a,b)=>b.confidence-a.confidence);let best=ranked[0];
  if(context.lastTarget==="my-bots"&&/\b(status|activity|doing|running|active)\b/.test(normalized)){const candidate=intents.find(x=>x.id==="bot_status");if(candidate)best={intent:candidate,confidence:Math.max(best?.confidence??0,.82),action:candidate.action};}
@@ -61,6 +73,6 @@ export function think(input:string,context:BrainContext={}):BrainResult{
  if(ambiguous){const response=chooseResponse(responses.unclear,context.responseHistory??[]);return{intent:null,confidence:best.confidence,response,action:{type:"none"},normalized,alternatives:alternatives.map(x=>x.intent.id),needsClarification:true,entities,context:{...context,pendingIntent:best.intent.id,entities,references,responseHistory:rememberResponse(context,response)}};}
  if(best.intent.id==="scroll"){const scrollTop=/\b(top|beginning)\b/.test(normalized);const scrollBottom=/\b(bottom|end)\b/.test(normalized);best={...best,action:{type:"scroll_page",direction:/\bup\b/.test(normalized)?"up":"down",position:scrollTop?"top":scrollBottom?"bottom":undefined}};}
  if(references.length){const ref=references[0];if(ref.type==="bot"&&best.intent.id==="bot_status"){const candidate=intents.find(x=>x.id==="bot_status")!;best={intent:candidate,confidence:Math.max(best.confidence,.88),action:best.action??candidate.action};}}
- const response=chooseResponse(responsePool(best.intent.id),context.responseHistory??[],input);const nextContext={lastIntent:best.intent.id,lastTarget:best.action?.type==="navigate"?best.action.target:context.lastTarget,history:[...(context.history??[]),normalized].slice(-10),responseHistory:rememberResponse(context,response),pendingIntent:null};
+ const response=chooseResponse(responsePool(best.intent.id),context.responseHistory??[],input);const nextContext={lastIntent:best.intent.id,lastTarget:best.action?.type==="navigate"?best.action.target:context.lastTarget,lastKnowledgeId:context.lastKnowledgeId,lastKnowledgeTopic:context.lastKnowledgeTopic,history:[...(context.history??[]),normalized].slice(-10),responseHistory:rememberResponse(context,response),pendingIntent:null};
  return{intent:best.intent.id,confidence:best.confidence,response,action:best.action??{type:"none"},normalized,alternatives:alternatives.map(x=>x.intent.id),needsClarification:false,entities,context:nextContext};
 }
