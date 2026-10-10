@@ -219,7 +219,7 @@ function think(input, context = {}) {
         });
         if (matches.length === 1) {
             const selected = matches[0].control;
-            const sensitive = /\b(withdraw|transfer|delete|remove|disable|revoke|reset|password|security code|confirm deletion|close account|submit|purchase|buy|sell|rent|activate|deactivate|create|save changes)\b/i.test(selected.label);
+            const sensitive = /\b(withdraw|transfer|deposit|send|delete|remove|disable|enable|revoke|reset|password|security code|confirm|close account|submit|purchase|buy|sell|rent|activate|deactivate|create|generate|add|edit|update|save|approve)\b/i.test(selected.label);
             const response = sensitive
                 ? "I found the " + selected.label + " control, but I won't trigger a financial, destructive, security-sensitive, or state-changing action by voice without a dedicated confirmation flow. Please review and use the control directly."
                 : "I found the visible " + selected.label + " control on this page.";
