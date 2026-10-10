@@ -1,6 +1,6 @@
 import {intents} from "./intents/core";
 
-import {composeIntentResponse,composeGoalResponse,composeClarificationResponse,composeApiClarification,composePreparedApiResponse} from "./responses/compose";
+import {composeIntentResponse,composeGoalResponse,composeClarificationResponse,composeApiClarification,composePreparedApiResponse,composeSequenceResponse,composeRuntimeControlResponse,composeAppMapChangeResponse,composeVerifiedFactFollowUp,composeBalanceNavigationResponse} from "./responses/compose";
 import {BrainAction,BrainApiOperation,BrainContext,BrainResult,Intent} from "./types";
 import {synonyms} from "./language/synonyms";
 import {knowledge} from "./knowledge/app";
@@ -124,15 +124,14 @@ export function think(input:string,context:BrainContext={}):BrainResult{
  if(requests.length>1){
   const steps=requests.map(part=>{const rankedPart=intents.map(intent=>({intent,confidence:score(part,intent)})).sort((a,b)=>b.confidence-a.confidence);const bestPart=rankedPart[0];const entitiesPart=extractEntities(part,context.entities);const refsPart=resolveReferences(part,context,entitiesPart);return{intent:bestPart?.intent.id??"",confidence:bestPart?.confidence??0,input:part,action:bestPart?.intent.action??{type:"none"},references:refsPart,alternatives:rankedPart.slice(1,3).map(x=>({intent:x.intent.id,confidence:x.confidence}))};});
   if(steps.some(step=>step.action.type==="api")){
-   const response="I can prepare one bot API operation at a time so I can validate the exact bot and amount and request approval for that specific action. Please send the bot operation by itself. No action has been sent.";
+   const response=composeApiClarification("not-direct","bot operation");
    return{intent:null,confidence:Math.min(...steps.map(step=>step.confidence)),response,action:{type:"none"},normalized:normalize(input),alternatives:steps.map(step=>step.intent).filter(Boolean),needsClarification:true,entities:context.entities??{},context:{...context,history:[...(context.history??[]),normalize(input)].slice(-10)}};
   }
   const decision=decide(steps,intents);const actionPlan=buildActionPlan(steps,steps.flatMap(s=>s.references));const execution=compileExecution(actionPlan,context.entities??{});decision.reason+=" Action plan: "+actionPlan.status+". Execution: "+execution.status+". ";
   if(decision.mode==="clarify")return{intent:null,confidence:Math.min(...steps.map(s=>s.confidence)),response:composeClarificationResponse("unclear",input,context),action:{type:"none"},normalized:normalize(input),alternatives:steps.map(s=>s.intent).filter(Boolean),needsClarification:true,entities:context.entities??{},context:{...context,decision,entities:extractEntities(input,context.entities),references:steps.flatMap(step=>step.references),history:[...(context.history??[]),normalize(input)].slice(-10)}};
   const first=steps[0];
-  const plannedSteps=steps.map((step,index)=>`${index+1}. ${step.input}`);
   const response=decision.mode==="sequence"
-   ? "I mapped your request into this sequence: "+plannedSteps.join("; ")+". I'll handle the first step only, then we should verify the visible result before continuing. I won't treat later steps as completed yet."
+   ? composeSequenceResponse(steps.map(step=>step.input),first.action)
    : composeIntentResponse(first.intent,first.action,first.input||input,context);
   return{intent:first.intent,confidence:first.confidence,response,action:first.action,normalized:normalize(input),alternatives:steps.map(s=>s.intent),needsClarification:false,entities:context.entities??{},context:{...context,lastIntent:first.intent,lastTarget:first.action.type==="navigate"?first.action.target:context.lastTarget,history:[...(context.history??[]),normalize(input)].slice(-10),responseHistory:rememberResponse(context,response),decision}};
  }
@@ -142,23 +141,16 @@ export function think(input:string,context:BrainContext={}):BrainResult{
   const changes=context.appMapChanges??[];
   let response:string;
   if(!context.appMapCompared){
-   response="I loaded the latest verified CryBots app map, but I don't have a previous map snapshot in this conversation to compare against. I won't guess which pages or controls are new.";
+   response=composeAppMapChangeResponse("no-baseline",changes);
   }else if(!changes.length){
-   response="I compared the latest verified CryBots app map with the previous snapshot available to Brain. No route, feature name, description, or keyword changes were detected.";
+   response=composeAppMapChangeResponse("unchanged",changes);
   }else{
-   const added=changes.filter(change=>change.kind==="added");
-   const changed=changes.filter(change=>change.kind==="changed");
-   const removed=changes.filter(change=>change.kind==="removed");
-   const parts:string[]=[];
-   if(added.length)parts.push("New verified features: "+added.map(change=>change.name+" ("+change.route+")").join(", "));
-   if(changed.length)parts.push("Updated feature knowledge: "+changed.map(change=>change.name+" ("+change.route+": "+change.details+")").join("; "));
-   if(removed.length)parts.push("No longer present in the verified map: "+removed.map(change=>change.name+" ("+change.route+")").join(", ")+". I will not navigate to these routes.");
-   response="I compared the latest verified app map with the previous snapshot. "+parts.join(". ")+".";
+   response=composeAppMapChangeResponse("changed",changes);
   }
   return{intent:"app-map-adaptation",confidence:.96,response,action:{type:"none"},normalized,alternatives:[],needsClarification:false,entities,context:{...context,history:[...(context.history??[]),normalized].slice(-10),entities}};
  }
  if(asksAboutBalance(input)){
-  const response="I’ll open Details to check your current USDT balance.";
+  const response=composeBalanceNavigationResponse("details");
   return{intent:"balance",confidence:.98,response,action:{type:"navigate",target:"details"},normalized,alternatives:[],needsClarification:false,entities,context:{...context,lastIntent:"balance",lastTarget:"details",history:[...(context.history??[]),normalized].slice(-10),responseHistory:rememberResponse(context,response),entities}};
  }
  const detectedGoal=detectGoal(input);
@@ -178,7 +170,7 @@ export function think(input:string,context:BrainContext={}):BrainResult{
   if(prior){
    const related=verifiedFacts.find(entry=>entry.topic===prior.topic&&entry.id!==prior.id);
    const selected=related??prior;
-   const response=related?"A little more on "+prior.topic.replace(/-/g," ")+": "+related.answer:"Here is the context I was referring to: "+prior.answer;
+   const response=composeVerifiedFactFollowUp(prior.topic,(related??prior).answer,Boolean(related));
    return{intent:`verified:${selected.id}`,confidence:.88,response,action:{type:"none"},normalized,alternatives:[],needsClarification:false,entities,context:{...context,history:[...(context.history??[]),normalized].slice(-10),entities,lastKnowledgeId:selected.id,lastKnowledgeTopic:selected.topic}};
   }
  }
@@ -193,13 +185,11 @@ export function think(input:string,context:BrainContext={}):BrainResult{
   if(matches.length===1){
    const selected=matches[0].control;
    const sensitive=/\b(withdraw|transfer|deposit|send|delete|remove|disable|enable|revoke|reset|password|security code|confirm|close account|submit|purchase|buy|sell|rent|activate|deactivate|create|generate|add|edit|update|save|approve)\b/i.test(selected.label);
-   const response=sensitive
-    ? "I found the "+selected.label+" control, but I won't trigger a financial, destructive, security-sensitive, or state-changing action by voice without a dedicated confirmation flow. Please review and use the control directly."
-    : "I found the visible "+selected.label+" control on this page.";
+   const response=composeRuntimeControlResponse(selected.label,sensitive?"sensitive":"matched");
    return{intent:sensitive?"runtime-control-needs-confirmation":"runtime-control-click",confidence:.94,response,action:sensitive?{type:"none"}:{type:"click",target:selected.id},normalized,alternatives:[],needsClarification:false,entities,context:{...context,history:[...(context.history??[]),normalized].slice(-10),entities}};
   }
   if(matches.length>1){
-   return{intent:"runtime-control-ambiguous",confidence:.5,response:"I found more than one matching visible control. Please say the full button label so I don't activate the wrong one.",action:{type:"none"},normalized,alternatives:[],needsClarification:true,entities,context:{...context,history:[...(context.history??[]),normalized].slice(-10),entities}};
+   return{intent:"runtime-control-ambiguous",confidence:.5,response:composeRuntimeControlResponse(requested,"ambiguous"),action:{type:"none"},normalized,alternatives:[],needsClarification:true,entities,context:{...context,history:[...(context.history??[]),normalized].slice(-10),entities}};
   }
  }
  if(asksAboutCurrentPage(input)){
@@ -210,7 +200,7 @@ export function think(input:string,context:BrainContext={}):BrainResult{
  const discoveredHit=wantsFeatureNavigation?matchDiscoveredFeature(input,context.discoveredFeatures??[]):undefined;
  if(discoveredHit){
   const feature=discoveredHit.feature;
-  const response=feature.description.trim()||"I found this feature in the latest verified app map.";
+  const response=feature.description.trim()||composeIntentResponse("navigation",{type:"navigate",target:feature.route},input,context);
   return{intent:"discovered:"+feature.id,confidence:discoveredHit.score,response,action:{type:"navigate",target:feature.route},normalized,alternatives:[],needsClarification:false,entities,context:{...context,history:[...(context.history??[]),normalized].slice(-10),entities,lastTarget:feature.route,discoveryVersion:context.discoveryVersion,discoveryUpdatedAt:context.discoveryUpdatedAt}};
  }
  const runtimeFacts=(context.runtimeFacts??[]).filter(fact=>fact&&typeof fact.id==="string"&&typeof fact.answer==="string"&&Array.isArray(fact.questions)&&Array.isArray(fact.keywords)&&typeof fact.source==="string"&&typeof fact.verifiedAt==="string");
