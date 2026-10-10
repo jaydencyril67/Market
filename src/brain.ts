@@ -140,7 +140,7 @@ export function think(input:string,context:BrainContext={}):BrainResult{
   return{intent:first.intent,confidence:first.confidence,response,action:first.action,normalized:normalize(input),alternatives:steps.map(s=>s.intent),needsClarification:false,entities:context.entities??{},context:{...context,lastIntent:first.intent,lastTarget:first.action.type==="navigate"?first.action.target:context.lastTarget,history:[...(context.history??[]),normalize(input)].slice(-10),responseHistory:rememberResponse(context,response),decision}};
  }
  const normalized=normalize(input);const entities=extractEntities(input,context.entities);const references=resolveReferences(input,context,entities);
- const asksAboutAppMapChanges=/\\b(what changed in the app|what changed in crybots|what changed in crybots app|any new pages|new pages or controls|new controls|did the app change|did crybots change|app map updates|updated app map|how has the app changed|what did you discover|what have you discovered|adapt to app changes)\\b/.test(normalized);
+ const asksAboutAppMapChanges=/\b(what changed in the app|what changed in crybots|what changed in crybots app|any new pages|new pages or controls|new controls|did the app change|did crybots change|app map updates|updated app map|how has the app changed|what did you discover|what have you discovered|adapt to app changes)\b/.test(normalized);
  if(asksAboutAppMapChanges){
   const changes=context.appMapChanges??[];
   let response:string;
