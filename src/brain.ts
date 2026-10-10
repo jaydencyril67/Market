@@ -204,7 +204,7 @@ export function think(input:string,context:BrainContext={}):BrainResult{
   const botId=targetCandidate&&!reservedTargets.has(targetCandidate.toLowerCase())?targetCandidate:undefined;
   const amountMatch=input.match(/\b(?:with|amount(?:\s+of)?|for)\s+(?:\$|usdt\s+|usd\s+)?([0-9]+(?:\.[0-9]+)?)(?:\s*(?:usdt|usd))?\b/i);
   const amount=amountMatch?.[1]?Number(amountMatch[1]):NaN;
-  const directCommand=/^(?:please\\s+)?(?:activate|start|turn on|deactivate|stop|turn off|withdraw)\\b/i.test(input.trim());
+  const directCommand=/^(?:please\s+)?(?:activate|start|turn on|deactivate|stop|turn off|withdraw)\b/i.test(input.trim());
   if(!directCommand){
    apiClarification="I can prepare this through CryBots’ API, but I need to distinguish a direct command from a how-to question. To submit a request for review, phrase it directly, for example: “activate bot BOT123 with 50 USDT.” No operation has been sent.";
   }else if(!botId){
