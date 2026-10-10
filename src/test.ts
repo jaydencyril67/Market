@@ -80,6 +80,35 @@ async function main():Promise<void>{
   assert(result.action.type==="navigate"&&result.action.target==="details","balance request should open the details route");
  });
 
+ test("meaningful follow-up repeats a known safe destination but does not invent one",()=>{
+  const session=new BrainSession();
+  session.ask("open my bots");
+  const repeated=session.ask("do it again");
+  assert(repeated.action.type==="navigate"&&repeated.action.target==="/bots","repeat should reuse the concrete previous destination");
+  const empty=new BrainSession().ask("do it again");
+  assert(empty.needsClarification&&empty.action.type==="none","repeat without a prior target must ask instead of guessing");
+ });
+
+ test("unresolved demonstratives ask for the missing item instead of guessing",()=>{
+  const result=think("what about the other one",{history:["compare bot A and bot B"]});
+  assert(result.needsClarification&&result.action.type==="none","the other one must not select an item when the candidates are not represented as structured entities");
+ });
+
+ test("intent-confusion cases preserve materially different actions",()=>{
+  const cases=[
+   {input:"open my bots",type:"navigate",target:"/bots"},
+   {input:"open my portfolio",type:"navigate",target:"/portfolio"},
+   {input:"show my webhooks",type:"navigate",target:"/webhooks"},
+   {input:"show my transaction history",type:"navigate",target:"/transactions"}
+  ];
+  for(const item of cases){
+   const result=think(item.input);
+   assert(result.action.type===item.type&&result.action.target===item.target,"meaning mismatch for '"+item.input+"': got "+JSON.stringify(result.action));
+  }
+  const unsafe=think("activate bot BOT-123");
+  assert(unsafe.action.type==="none"&&unsafe.needsClarification,"a sensitive bot command without its required details must not be guessed into execution");
+ });
+
  test("conversation session retains context and can reset",()=>{
   const session=new BrainSession();
   session.ask("open my bots");
