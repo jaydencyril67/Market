@@ -11,7 +11,25 @@ import {resolveReferences} from "./language/references";
 import {splitRequests,decide} from "./reasoning/decision";
 import {buildActionPlan} from "./reasoning/planner";
 import {compileExecution} from "./reasoning/executor";
-export const normalize=(input:string)=>input.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9\s-]/g," ").replace(/\s+/g," ").trim();
+const languageExpansions:Record<string,string>={
+ "im":"i am","ive":"i have","ill":"i will","id":"i would","dont":"do not","doesnt":"does not","didnt":"did not",
+ "cant":"cannot","couldnt":"could not","wouldnt":"would not","shouldnt":"should not","wont":"will not","isnt":"is not",
+ "arent":"are not","wasnt":"was not","werent":"were not","whats":"what is","wheres":"where is","hows":"how is",
+ "thats":"that is","theres":"there is","lets":"let us","wanna":"want to","gonna":"going to","gotta":"got to",
+ "lemme":"let me","gimme":"give me","pls":"please","plz":"please","u":"you","ur":"your","ya":"you","rn":"right now",
+ "kinda":"kind of","sorta":"sort of","abt":"about","bc":"because","cuz":"because"
+};
+const commonCorrections:Record<string,string>={
+ "balnce":"balance","balace":"balance","transection":"transaction","transction":"transaction","transacton":"transaction",
+ "webhok":"webhook","webhokks":"webhooks","wthdraw":"withdraw","widraw":"withdraw","withdrwal":"withdrawal",
+ "portfoli":"portfolio","activte":"activate","deactvate":"deactivate","notifcation":"notification","securty":"security",
+ "tranaction":"transaction","transacions":"transactions","botss":"bots"
+};
+export const normalize=(input:string)=>{
+ const base=input.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9\s-]/g," ").replace(/\s+/g," ").trim();
+ if(!base)return "";
+ return base.split(" ").map(word=>commonCorrections[word]??languageExpansions[word]??word).join(" ");
+};
 const variants=(value:string)=>{const n=normalize(value);const out=new Set([n]);for(const [key,items] of Object.entries(synonyms)){if(items.includes(n)||key===n)for(const item of items)out.add(normalize(item));}return [...out];};
 const tokenSet=(text:string)=>new Set(normalize(text).split(" ").filter(Boolean));
 const responsePool=(intentId:string)=>{const map:Record<string,string>={back:"back_success",forward:"forward_success",scroll:"scroll_success",scroll_nowbar:"acknowledgement",expand_nowbar:"acknowledgement",collapse_nowbar:"acknowledgement"};return responses[map[intentId]??intentId]??responses.fallback;};
@@ -256,6 +274,6 @@ export function think(input:string,context:BrainContext={}):BrainResult{
  const response=action.type==="api"
   ?"I prepared a bot operation for review. Nothing has been changed yet. Check the bot and details in the confirmation panel, then confirm to send the request to CryBots."
   :chooseResponse(responsePool(best.intent.id),context.responseHistory??[],input);
- const nextContext={lastIntent:best.intent.id,lastTarget:action.type==="navigate"?action.target:context.lastTarget,lastKnowledgeId:context.lastKnowledgeId,lastKnowledgeTopic:context.lastKnowledgeTopic,activeGoal:context.activeGoal,goalTopics:context.goalTopics,history:[...(context.history??[]),normalized].slice(-10),responseHistory:rememberResponse(context,response),pendingIntent:null};
+ const nextContext={...context,lastIntent:best.intent.id,lastTarget:action.type==="navigate"?action.target:context.lastTarget,lastKnowledgeId:context.lastKnowledgeId,lastKnowledgeTopic:context.lastKnowledgeTopic,activeGoal:context.activeGoal,goalTopics:context.goalTopics,history:[...(context.history??[]),normalized].slice(-10),responseHistory:rememberResponse(context,response),pendingIntent:null,entities,references};
  return{intent:best.intent.id,confidence:best.confidence,response,action,normalized,alternatives:alternatives.map(x=>x.intent.id),needsClarification:false,entities,context:nextContext};
 }
