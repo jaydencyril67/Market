@@ -9,7 +9,7 @@ export const patterns:Pattern[]=[
 {intent:"api_keys",weight:.22,patterns:["where can i manage developer access","show my developer keys","i need an api credential","where are my api credentials"]},
 {intent:"webhooks",weight:.22,patterns:["where can i manage callbacks","show my webhook settings","i need webhook access","where are my event callbacks"]},
 {intent:"security",weight:.22,patterns:["how do i protect my account","how can i secure my account","help me with account security","where can i enable two factor"]},
-{intent:"voice",weight:.20,patterns:["i want to talk to you","can i speak to crybots","help me use voice","how can i talk instead of typing"]}
+{intent:"voice",weight:.20,patterns:["i want to talk to you","can i speak to crybots","help me use voice","how can i talk instead of typing"]},
 {intent:"deposit",weight:.22,patterns:["where do i add money","how do i top up","i need to fund my wallet","how do i put money into crybots","can i pay into my account"]},
 {intent:"withdraw",weight:.22,patterns:["how do i get my money out","how do i request a payout","i want to move funds out","how do i cash out","where do i request a withdrawal"]},
 {intent:"portfolio",weight:.22,patterns:["what is my current balance","how much money is in my account","show my wallet balance","what do i currently own","how much have i got"]},
