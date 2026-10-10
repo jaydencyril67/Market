@@ -192,7 +192,7 @@ export async function thinkLive(input:string,context:BrainContext={},bridge:Live
     const missing=results.filter(item=>!item.live.ok);
     if(!available.length)return {...result,response:"I understood the goal, but I couldn't retrieve the connected CryBots records needed to investigate it. Please try again when the connection is available.",liveData:undefined};
     const liveData=Object.fromEntries(available.map(item=>[item.topic,item.live.data]));
-    let response=summarizeGoal(goal,liveData);
+    let response=summarizeGoal(goal??"",liveData);
     if(missing.length)response+=" Some related records could not be retrieved ("+missing.map(item=>item.topic).join(", ")+"), so this assessment is incomplete.";
     return {...result,response,liveData:{goal,checkedTopics:available.map(item=>item.topic),records:liveData,unavailableTopics:missing.map(item=>item.topic)},context:{...result.context,lastTarget:result.context.lastTarget}};
   }
