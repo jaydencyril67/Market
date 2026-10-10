@@ -2,6 +2,7 @@ import {BrainContext,BrainDiscoveredFeature,BrainResult} from "../types";
 import {think} from "../brain";
 import {buildLiveQuery,liveTopicForResult} from "./router";
 import {LiveCryBotsBridge,LiveDataResult} from "./types";
+import {compareAppMap} from "../knowledge/adaptation";
 
 export type ThinkLiveOptions={userId?:string;runtimeFeatures?:BrainDiscoveredFeature[]};
 
@@ -64,7 +65,9 @@ export async function thinkLive(input:string,context:BrainContext={},bridge:Live
           Array.isArray(fact.keywords)&&fact.keywords.every((keyword:unknown)=>typeof keyword==="string")&&
           typeof fact.source==="string"&&typeof fact.verifiedAt==="string"
         ):undefined;
-        refreshedContext={...context,discoveredFeatures,runtimeFacts,discoveryVersion:snapshot.version,discoveryUpdatedAt:snapshot.updatedAt};
+        const hasPriorMap=Array.isArray(context.discoveredFeatures)&&context.discoveredFeatures.length>0;
+        const appMapChanges=hasPriorMap?compareAppMap(context.discoveredFeatures??[],discoveredFeatures):[];
+        refreshedContext={...context,discoveredFeatures,runtimeFacts,discoveryVersion:snapshot.version,discoveryUpdatedAt:snapshot.updatedAt,appMapCompared:hasPriorMap,appMapChanges};
       }
     }
   }catch{
