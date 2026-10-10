@@ -125,10 +125,10 @@ function score(input, intent) { const text = (0, exports.normalize)(input); if (
 const rememberResponse = (context, response) => [...(context.responseHistory ?? []), response].slice(-8);
 const isContextualFollowUp = (input) => /^(tell me more|explain (that|it|this)|what do you mean|how does (that|it|this) work|why is that|go deeper|more details|continue|and then|what about it|what about that|elaborate|can you explain more|give me more details|say more)$/.test((0, exports.normalize)(input));
 const goalGuides = [
-    { id: "bot-performance", topics: ["bots", "trading", "transactions"], target: "my-bots", response: "To understand bot performance, connect three pieces: My Bots shows which bots are active and their available status; Trade History helps you inspect recorded trading activity; transaction records can help explain account movements. An active bot is not necessarily a profitable one. I can help you review these areas, but I need actual records to identify the best or worst performer." },
-    { id: "account-overview", topics: ["portfolio", "transactions"], target: "portfolio", response: "For a useful account overview, start with Portfolio for your current holdings, then compare Transaction History for deposits, withdrawals, and other recorded account movements. These answer different questions, and I should use current account data for exact amounts." },
-    { id: "webhook-troubleshooting", topics: ["webhooks", "logs"], target: "webhooks", response: "To troubleshoot a webhook, connect its configuration with its delivery history: verify the endpoint and enabled state, then inspect the latest delivery result or available logs. Keep its secret private. I can explain the evidence you provide, but I won't assume a delivery succeeded." },
-    { id: "account-security", topics: ["security", "api keys"], target: "security", response: "For account security, review your Security settings and active device sessions, then check API Keys and their permissions if you use integrations. Use the minimum permissions needed and revoke anything unfamiliar or no longer required." }
+    { id: "bot-performance", topics: ["bots", "trading", "transactions"], target: "my-bots" },
+    { id: "account-overview", topics: ["portfolio", "transactions"], target: "portfolio" },
+    { id: "webhook-troubleshooting", topics: ["webhooks", "logs"], target: "webhooks" },
+    { id: "account-security", topics: ["security", "api keys"], target: "security" }
 ];
 const detectGoal = (input) => {
     const text = (0, exports.normalize)(input);
@@ -279,12 +279,13 @@ function think(input, context = {}) {
     if (context.activeGoal && isGoalFollowUp(input)) {
         const guide = goalGuides.find(item => item.id === context.activeGoal);
         if (guide) {
-            const response = guide.id === "bot-performance" ? "To judge which bot is performing best, compare each bot’s recorded results over the same time period, then check its status and related trades. I can’t rank your bots without those actual records. Start in My Bots, then use Trade History to verify the activity." : guide.response;
+            const response = (0, compose_1.composeGoalResponse)(guide.id, guide.topics, guide.target, input, context);
             return { intent: "goal-follow-up:" + guide.id, confidence: .84, response, action: { type: "navigate", target: guide.target }, normalized, alternatives: [], needsClarification: false, entities, context: { ...context, history: [...(context.history ?? []), normalized].slice(-10), entities, activeGoal: guide.id, goalTopics: guide.topics, lastTarget: guide.target } };
         }
     }
     if (detectedGoal) {
-        return { intent: "goal:" + detectedGoal.id, confidence: .86, response: detectedGoal.response, action: { type: "navigate", target: detectedGoal.target }, normalized, alternatives: [], needsClarification: false, entities, context: { ...context, history: [...(context.history ?? []), normalized].slice(-10), entities, activeGoal: detectedGoal.id, goalTopics: detectedGoal.topics, lastTarget: detectedGoal.target } };
+        const response = (0, compose_1.composeGoalResponse)(detectedGoal.id, detectedGoal.topics, detectedGoal.target, input, context);
+        return { intent: "goal:" + detectedGoal.id, confidence: .86, response, action: { type: "navigate", target: detectedGoal.target }, normalized, alternatives: [], needsClarification: false, entities, context: { ...context, history: [...(context.history ?? []), normalized].slice(-10), entities, activeGoal: detectedGoal.id, goalTopics: detectedGoal.topics, lastTarget: detectedGoal.target } };
     }
     if (context.lastKnowledgeId && isContextualFollowUp(input)) {
         const prior = (context.runtimeFacts?.length ? context.runtimeFacts : crybotsSource_1.verifiedFacts).find(entry => entry.id === context.lastKnowledgeId);
