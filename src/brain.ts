@@ -64,6 +64,27 @@ const detectGoal=(input:string):GoalGuide|undefined=>{
  return undefined;
 };
 const isGoalFollowUp=(input:string)=>/^(what should i check|what should i look at|what next|what do i check next|which one is best|which is best|which one is worst|why is it losing|how do i know|how can i tell|what does that mean|how do i improve|what should i do|and what about the results|what about my data|what do the records say|what should i compare|can you check that|check it for me|then what|what about now)$/.test(normalize(input));
+const matchDiscoveredFeature=(input:string,features:NonNullable<BrainContext["discoveredFeatures"]>)=>{
+ const text=normalize(input);
+ const tokens=new Set(text.split(" ").filter(x=>x.length>2&&!["where","what","when","show","open","take","me","the","can","you","please","find","page","section","feature","want","need"].includes(x)));
+ let best:{feature:NonNullable<BrainContext["discoveredFeatures"]>[number];score:number}|undefined;
+ for(const feature of features){
+  if(feature.verified!==true||!feature.route||!/^\/[a-z0-9/_-]+$/i.test(feature.route))continue;
+  const name=normalize(feature.name);const id=normalize(feature.id.replace(/[-_]/g," "));
+  const phrases=[name,id,...feature.keywords.map(normalize)].filter(Boolean);
+  let score=0;
+  if(name&&text.includes(name))score=1;
+  else if(id&&text.includes(id))score=.92;
+  else if(phrases.some(phrase=>phrase.length>2&&text.includes(phrase)))score=.86;
+  else{
+   const featureTokens=new Set([name,...feature.keywords].flatMap(value=>normalize(value).split(" ")).filter(x=>x.length>2));
+   let overlap=0;for(const token of featureTokens)if(tokens.has(token))overlap++;
+   if(overlap>=2)score=Math.min(.78,.48+overlap*.08);
+  }
+  if(score>(best?.score??0))best={feature,score};
+ }
+ return best&&best.score>=.72?best:undefined;
+};
 
 export function think(input:string,context:BrainContext={}):BrainResult{
  const requests=splitRequests(input);
@@ -94,6 +115,12 @@ export function think(input:string,context:BrainContext={}):BrainResult{
    const response=related?"A little more on "+prior.topic.replace(/-/g," ")+": "+related.answer:"Here is the context I was referring to: "+prior.answer;
    return{intent:`verified:${selected.id}`,confidence:.88,response,action:{type:"none"},normalized,alternatives:[],needsClarification:false,entities,context:{...context,history:[...(context.history??[]),normalized].slice(-10),entities,lastKnowledgeId:selected.id,lastKnowledgeTopic:selected.topic}};
   }
+ }
+ const discoveredHit=matchDiscoveredFeature(input,context.discoveredFeatures??[]);
+ if(discoveredHit){
+  const feature=discoveredHit.feature;
+  const response=feature.description.trim()||"I found this feature in the latest verified app map.";
+  return{intent:"discovered:"+feature.id,confidence:discoveredHit.score,response,action:{type:"navigate",target:feature.route},normalized,alternatives:[],needsClarification:false,entities,context:{...context,history:[...(context.history??[]),normalized].slice(-10),entities,lastTarget:feature.route,discoveryVersion:context.discoveryVersion,discoveryUpdatedAt:context.discoveryUpdatedAt}};
  }
  const verifiedHit=findVerifiedKnowledge(input);const knowledgeHit=findKnowledge(input,knowledge);
  if(verifiedHit&&verifiedHit.score>=.52){const nextContext={...context,history:[...(context.history??[]),normalized].slice(-10),pendingIntent:null};return{intent:`verified:${verifiedHit.entry.id}`,confidence:verifiedHit.score,response:verifiedHit.entry.answer,action:verifiedHit.entry.route?{type:"navigate",target:verifiedHit.entry.route}:{type:"none"},normalized,alternatives:[],needsClarification:false,entities,context:{...nextContext,entities,lastKnowledgeId:verifiedHit.entry.id,lastKnowledgeTopic:verifiedHit.entry.topic}};}
