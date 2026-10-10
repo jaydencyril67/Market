@@ -75,7 +75,7 @@ async function main() {
         const bridge = { query: async (query) => { seen.push(query); return { topic: query.topic, ok: true, data: { accountId: "account-1", unrelatedMetric: 500 }, fetchedAt: "2026-10-10T00:00:00Z" }; } };
         const result = await (0, think_1.thinkLive)("check my balance", {}, bridge);
         assert(seen.length === 1 && seen[0].topic === "account-state", "balance request should query account-state data");
-        assert(result.response.toLowerCase().includes("cannot infer") || result.response.toLowerCase().includes("won’t guess"), "response should explain that missing balance cannot be inferred");
+        assert(result.response.toLowerCase().includes("cannot be inferred") || result.response.toLowerCase().includes("cannot infer") || result.response.toLowerCase().includes("won't guess"), "response should explain that missing balance cannot be inferred");
         assert(!result.response.includes("500"), "unrelated numeric data must not be presented as a balance");
     });
     await testAsync("live data failures identify the unavailable source without implying success", async () => {
