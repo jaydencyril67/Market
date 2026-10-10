@@ -18,9 +18,12 @@ function reasonOverLiveData(input:string,live:LiveDataResult):string|undefined{
   const text=input.toLowerCase(); const data=live.data;
   if(live.topic==="transactions"&&Array.isArray(data)){
     if(!data.length)return "You do not have any recorded CryBots transactions yet."; const latest=asRecord(data[0]); if(!latest)return live.message;
-    const title=String(latest.title??latest.category??latest.direction??"Transaction"); const amount=formatAmount(latest.amount,latest.currency);
-    const status=latest.status?String(latest.status):""; const when=latest.createdAt?new Date(String(latest.createdAt)).toLocaleString():"";
-    if(/latest|last|most recent|recent transaction/.test(text))return "Your latest transaction is "+title+" for "+amount+(status?", status: "+status:"")+(when?", recorded "+when: "")+".";
+    const title=String(latest.title??latest.category??latest.direction??"Transaction");
+    const amount=latest.amount!==undefined&&latest.amount!==null?formatAmount(latest.amount,latest.currency??"USDT"):"an amount not recorded";
+    const status=latest.status?String(latest.status):"status not recorded";
+    const parsedDate=latest.createdAt?new Date(String(latest.createdAt)):null;
+    const when=parsedDate&&Number.isFinite(parsedDate.getTime())?parsedDate.toLocaleString():"date not recorded";
+    if(/latest|last|most recent|recent transaction/.test(text))return "Your latest recorded transaction is "+title+", amount "+amount+", status "+status+", recorded "+when+". This is from your CryBots transaction history.";
     return live.message;
   }
   if(live.topic==="bots"){
