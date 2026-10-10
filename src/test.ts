@@ -18,6 +18,15 @@ async function testAsync(name:string,run:()=>Promise<void>):Promise<void> {
 }
 
 async function main():Promise<void>{
+ test("natural account-deletion wording resolves through verified app knowledge",()=>{
+  const requests=["I want to delete my account","How can I permanently close my account?","please remove my account"];
+  for(const request of requests){
+   const result=think(request);
+   assert(result.action.type==="navigate"&&result.action.target==="/danger","account-deletion intent should discover the verified Danger workflow for: "+request+"; got "+JSON.stringify(result.action));
+   assert(result.intent?.startsWith("verified:"),"account deletion should be grounded in a verified source fact rather than a guessed generic intent");
+  }
+ });
+
  test("normalization handles casual language and common typos",()=>{
   assert(normalize("Wanna check my balnce pls") === "want to check my balance please","normalization should expand slang and correct supported typos");
   assert(normalize("  ") === "","blank input should normalize to an empty string");
