@@ -5,6 +5,11 @@ exports.composeClarificationResponse = composeClarificationResponse;
 exports.composeGoalResponse = composeGoalResponse;
 exports.composeApiClarification = composeApiClarification;
 exports.composePreparedApiResponse = composePreparedApiResponse;
+exports.composeSequenceResponse = composeSequenceResponse;
+exports.composeRuntimeControlResponse = composeRuntimeControlResponse;
+exports.composeAppMapChangeResponse = composeAppMapChangeResponse;
+exports.composeVerifiedFactFollowUp = composeVerifiedFactFollowUp;
+exports.composeBalanceNavigationResponse = composeBalanceNavigationResponse;
 const core_1 = require("../intents/core");
 const crybotsSource_1 = require("../knowledge/crybotsSource");
 /**
@@ -119,4 +124,41 @@ function composeApiClarification(reason, operation, botId) {
 function composePreparedApiResponse(operation, target) {
     const details = [normalizeLabel(operation), target ? "target " + target : undefined].filter(Boolean).join(" for ");
     return "Prepared for confirmation: " + details + ". Review the operation and its parameters in the confirmation panel; it has not been submitted or completed.";
+}
+function composeSequenceResponse(inputs, firstAction) {
+    const steps = inputs.map((value, index) => (index + 1) + ". " + value.trim()).join("; ");
+    const first = firstAction.type === "navigate" ? "The first step is to open " + normalizeLabel(firstAction.target) + "." : "The first step is ready to review.";
+    return "I separated the request into " + inputs.length + " steps: " + steps + ". " + first + " Verify its result before continuing; later steps remain uncompleted until individually confirmed.";
+}
+function composeRuntimeControlResponse(label, kind) {
+    const control = label.trim() || "the requested control";
+    if (kind === "sensitive")
+        return "The visible control " + JSON.stringify(control) + " matches the request, but it can change account or application state. Use the app's dedicated confirmation flow before proceeding; no control was triggered.";
+    if (kind === "ambiguous")
+        return "More than one visible control matches " + JSON.stringify(control) + ". Provide the full displayed label so the intended control can be identified without guessing.";
+    return "The visible control " + JSON.stringify(control) + " matches the request. Its resulting state still needs to be verified by the app.";
+}
+function composeAppMapChangeResponse(state, changes) {
+    if (state === "no-baseline")
+        return "The latest verified app map is available, but no earlier snapshot is available for comparison. New or removed features cannot be established without that baseline.";
+    if (state === "unchanged")
+        return "The latest and previous verified app maps contain no detected route, feature-name, description, or keyword changes.";
+    const groups = [
+        { kind: "added", label: "New verified features" },
+        { kind: "changed", label: "Updated feature knowledge" },
+        { kind: "removed", label: "Features no longer present" }
+    ];
+    const parts = groups.map(group => {
+        const entries = changes.filter(change => change.kind === group.kind);
+        return entries.length ? group.label + ": " + entries.map(change => change.name + " (" + change.route + (group.kind === "changed" && change.details ? ": " + change.details : "") + ")").join("; ") : "";
+    }).filter(Boolean);
+    const removed = changes.some(change => change.kind === "removed");
+    return "App-map comparison found " + changes.length + " change" + (changes.length === 1 ? "" : "s") + ". " + parts.join(". ") + (removed ? ". Removed routes must not be used for navigation." : ".");
+}
+function composeVerifiedFactFollowUp(topic, answer, hasRelated) {
+    const label = normalizeLabel(topic);
+    return hasRelated ? "Additional verified information about " + label + ": " + answer : "The earlier verified information about " + label + " is still the relevant context: " + answer;
+}
+function composeBalanceNavigationResponse(target) {
+    return "Opening " + pageLabel(target, {}) + " to retrieve the current balance. The balance itself must come from the connected account data.";
 }

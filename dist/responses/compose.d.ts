@@ -4,3 +4,13 @@ export declare function composeClarificationResponse(kind: "unclear" | "fallback
 export declare function composeGoalResponse(goalId: string, topics: string[], target: string, input: string, context?: BrainContext): string;
 export declare function composeApiClarification(reason: "not-direct" | "missing-id" | "missing-amount", operation: string, botId?: string): string;
 export declare function composePreparedApiResponse(operation: string, target?: string): string;
+export declare function composeSequenceResponse(inputs: string[], firstAction: BrainAction): string;
+export declare function composeRuntimeControlResponse(label: string, kind: "matched" | "sensitive" | "ambiguous"): string;
+export declare function composeAppMapChangeResponse(state: "no-baseline" | "unchanged" | "changed", changes: Array<{
+    kind: string;
+    name: string;
+    route: string;
+    details: string;
+}>): string;
+export declare function composeVerifiedFactFollowUp(topic: string, answer: string, hasRelated: boolean): string;
+export declare function composeBalanceNavigationResponse(target: string): string;
