@@ -1,8 +1,8 @@
-import {BrainAction,BrainReference,BrainStep,ReasoningDecision,Intent} from "../types";
+import {BrainAction,BrainStep,ReasoningDecision,Intent} from "../types";
 export function splitRequests(input:string):string[]{
- const actionLead=/^(?:open|go to|take me to|navigate to|show|check|review|compare|scroll|click|tap|press|create|delete|remove|enable|disable|update|save|deposit|withdraw|transfer|buy|sell|rent|activate|deactivate|find|tell me|explain|list|view|inspect|then)\\b/i;
+ const actionLead=/^(?:open|go to|take me to|navigate to|show|check|review|compare|scroll|click|tap|press|create|delete|remove|enable|disable|update|save|deposit|withdraw|transfer|buy|sell|rent|activate|deactivate|find|tell me|explain|list|view|inspect|then)\b/i;
  return input.replace(/[.;]+/g,"|").split("|").flatMap(part=>{
-  const pieces=part.split(/\\s+and\\s+/i);
+  const pieces=part.split(/\s+and\s+/i);
   if(pieces.length<2)return[part.trim()].filter(Boolean);
   const out:string[]=[];let current=pieces[0];
   for(let i=1;i<pieces.length;i++){
