@@ -15,15 +15,6 @@ function topicFor(result:BrainResult){return liveTopicForResult(result)??verifie
 const asRecord=(value:unknown):Record<string,any>|null=>value&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,any>:null;
 const formatAmount=(value:unknown,currency?:unknown)=>{const n=Number(value);return Number.isFinite(n)?n.toFixed(2)+(currency?" "+String(currency):""):String(value??"");};
 
-function recordCount(value:unknown):number|undefined{
-  if(Array.isArray(value))return value.length;
-  const record=asRecord(value);
-  if(!record)return undefined;
-  for(const key of ["investments","bots","transactions","webhooks","deliveries","deliveryHistory","notifications","records","items","history","logs"]){
-    if(Array.isArray(record[key]))return record[key].length;
-  }
-  return undefined;
-}
 function explicitBalanceSummary(data:unknown):string|undefined{
   const record=asRecord(data);if(!record)return undefined;
   const labels:Record<string,string>={availableBalance:"available balance",usdtBalance:"USDT balance",balance:"balance",totalBalance:"total balance",walletBalance:"wallet balance",available:"available balance"};
@@ -84,7 +75,7 @@ function reasonOverLiveData(input:string,live:LiveDataResult):string|undefined{
     return live.message;
   }
   if(live.topic==="bots"){
-    const record=asRecord(data); const investments=Array.isArray(record?.investments)?record.investments:[];
+    const record=asRecord(data); const investments=Array.isArray(record?.investments)?record.investments:Array.isArray(data)?data:[];
     const active=investments.filter((item:any)=>item?.active===true||["activating","active"].includes(String(item?.lifecycleStatus??"").toLowerCase()));
     if(/which|what|show|list/.test(text)&&/active|running/.test(text)){
       if(!active.length)return "None of your bot investments are currently active or activating."; const ids=active.map((item:any)=>item?.botId).filter(Boolean);
