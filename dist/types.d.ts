@@ -2,6 +2,9 @@ export type BrainAction = {
     type: "navigate";
     target: string;
 } | {
+    type: "click";
+    target: string;
+} | {
     type: "back";
 } | {
     type: "forward";
