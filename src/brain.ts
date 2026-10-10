@@ -198,11 +198,11 @@ export function think(input:string,context:BrainContext={}):BrainResult{
  let apiClarification:string|undefined;
  if(action.type==="api"){
   const operation:BrainApiOperation=action.operation;
-  const targetMatch=input.match(/\\bbot(?:\\s+id)?\\s*(?:#\\s*|id\\s*)?([a-z0-9][a-z0-9._-]{2,})\\b/i);
+  const targetMatch=input.match(/\bbot(?:\s+id)?\s*(?:#\s*|id\s*)?([a-z0-9][a-z0-9._-]{2,})\b/i);
   const targetCandidate=targetMatch?.[1]?.trim();
   const reservedTargets=new Set(["with","using","amount","for","usdt","usd","please","my","your","this","that","bot","bots","activate","deactivate","withdraw","funds","from","now"]);
   const botId=targetCandidate&&!reservedTargets.has(targetCandidate.toLowerCase())?targetCandidate:undefined;
-  const amountMatch=input.match(/\\b(?:with|amount(?:\\s+of)?|for)\\s+(?:\\$|usdt\\s+|usd\\s+)?([0-9]+(?:\\.[0-9]+)?)(?:\\s*(?:usdt|usd))?\\b/i);
+  const amountMatch=input.match(/\b(?:with|amount(?:\s+of)?|for)\s+(?:\$|usdt\s+|usd\s+)?([0-9]+(?:\.[0-9]+)?)(?:\s*(?:usdt|usd))?\b/i);
   const amount=amountMatch?.[1]?Number(amountMatch[1]):NaN;
   if(!botId){
    apiClarification="I can prepare that through CryBots’ bot API, but I need the exact bot ID. Please repeat the request with the bot ID, for example: “activate bot BOT123 with 50 USDT.” No operation has been sent.";
