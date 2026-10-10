@@ -80,7 +80,10 @@ export async function thinkLive(input:string,context:BrainContext={},bridge:Live
     for(const feature of options.runtimeFeatures){
       if(feature&&feature.verified===true&&typeof feature.route==="string"&&/^\/[a-z0-9/_-]+$/i.test(feature.route))merged.set(feature.route,feature);
     }
-    refreshedContext={...refreshedContext,discoveredFeatures:[...merged.values()]};
+    const mergedFeatures=[...merged.values()];
+    const previousMap=context.appMapSnapshot??[];
+    const hasPriorMap=previousMap.length>0;
+    refreshedContext={...refreshedContext,discoveredFeatures:mergedFeatures,appMapSnapshot:mergedFeatures,appMapCompared:hasPriorMap,appMapChanges:hasPriorMap?compareAppMap(previousMap,mergedFeatures):[]};
   }
   const result=think(input,refreshedContext);
   const goal=result.context.activeGoal;
