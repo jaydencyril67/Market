@@ -55,7 +55,13 @@ export async function thinkLive(input:string,context:BrainContext={},bridge:Live
           typeof feature.route==="string"&&/^\/[a-z0-9/_-]+$/i.test(feature.route)&&
           typeof feature.description==="string"&&Array.isArray(feature.keywords)&&feature.keywords.every((keyword:unknown)=>typeof keyword==="string")
         );
-        refreshedContext={...context,discoveredFeatures,discoveryVersion:snapshot.version,discoveryUpdatedAt:snapshot.updatedAt};
+        const runtimeFacts=Array.isArray(snapshot.facts)?snapshot.facts.filter(fact=>
+          fact&&typeof fact.id==="string"&&typeof fact.topic==="string"&&typeof fact.answer==="string"&&
+          Array.isArray(fact.questions)&&fact.questions.every((question:unknown)=>typeof question==="string")&&
+          Array.isArray(fact.keywords)&&fact.keywords.every((keyword:unknown)=>typeof keyword==="string")&&
+          typeof fact.source==="string"&&typeof fact.verifiedAt==="string"
+        ):undefined;
+        refreshedContext={...context,discoveredFeatures,runtimeFacts,discoveryVersion:snapshot.version,discoveryUpdatedAt:snapshot.updatedAt};
       }
     }
   }catch{
