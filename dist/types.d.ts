@@ -51,6 +51,10 @@ export type BrainStep = {
     input: string;
     action: BrainAction;
     references: BrainReference[];
+    alternatives?: {
+        intent: string;
+        confidence: number;
+    }[];
 };
 export type ReasoningDecision = {
     mode: "single" | "sequence" | "clarify";
@@ -62,6 +66,7 @@ export type ActionPlanStep = {
     intent: string;
     action: BrainAction;
     status: "ready" | "blocked";
+    dependsOn?: number[];
     requiresEntity?: boolean;
     reason?: string;
 };
@@ -111,6 +116,30 @@ export type BrainRuntimeFact = {
     sourcePath: string;
     verifiedAt: string;
 };
+export type BrainRuntimePageSnapshot = {
+    route: string;
+    title: string;
+    headings: string[];
+    states: string[];
+    fields: {
+        label: string;
+        type: string;
+        required: boolean;
+        disabled: boolean;
+        hasValue: boolean;
+        section?: string;
+    }[];
+    forms: {
+        label: string;
+        fields: {
+            label: string;
+            type: string;
+            required: boolean;
+            disabled: boolean;
+            hasValue: boolean;
+        }[];
+    }[];
+};
 export type BrainContext = {
     lastIntent?: string;
     lastTarget?: string;
@@ -134,6 +163,7 @@ export type BrainContext = {
         label: string;
         disabled: boolean;
     }[];
+    runtimePageSnapshot?: BrainRuntimePageSnapshot;
 };
 export type BrainResult = {
     intent: string | null;
