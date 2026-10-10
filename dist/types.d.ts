@@ -179,6 +179,11 @@ export type BrainContext = {
         disabled: boolean;
     }[];
     runtimePageSnapshot?: BrainRuntimePageSnapshot;
+    runtimeClock?: {
+        now: string;
+        timeZone: string;
+        locale?: string;
+    };
 };
 export type BrainResult = {
     intent: string | null;

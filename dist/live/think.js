@@ -105,7 +105,7 @@ function summarizeGoal(goal, records) {
         ["delivery verification", deliveries ? "inspect individual returned delivery results" : "configuration alone does not establish delivery success"]
     ]);
 }
-function reasonOverLiveData(input, live) {
+function reasonOverLiveData(input, live, timeZone = "UTC") {
     const query = input.toLowerCase(), data = live.data;
     const facts = (values) => values.filter(([, v]) => v !== undefined && v !== null && String(v).trim() !== "").map(([k, v]) => k + ": " + String(v));
     const report = (subject, values) => { const entries = facts(values); return entries.length ? subject + " — " + entries.join("; ") + "." : undefined; };
@@ -121,7 +121,7 @@ function reasonOverLiveData(input, live) {
                 ["type", item.title ?? item.category ?? item.direction],
                 ["amount", item.amount !== undefined ? formatAmount(item.amount, item.currency ?? "USDT") : undefined],
                 ["status", item.status],
-                ["recorded", date && Number.isFinite(date.getTime()) ? date.toLocaleString() : undefined]
+                ["recorded", date && Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat("en-GB", { timeZone, year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date) : undefined]
             ]) ?? live.message;
         }
         return live.message;
@@ -245,7 +245,7 @@ async function thinkLive(input, context = {}, bridge, options = {}) {
     const live = await bridge.query(liveQuery);
     if (!live.ok)
         return { ...result, response: (0, compose_1.composeLiveDataStatus)(live.topic, "unavailable", live.message), action: result.action, liveData: undefined };
-    const summary = reasonOverLiveData(input, live) ?? (0, compose_1.composeLiveDataStatus)(live.topic, "unrecognized");
+    const summary = reasonOverLiveData(input, live, refreshedContext.runtimeClock?.timeZone ?? "UTC") ?? (0, compose_1.composeLiveDataStatus)(live.topic, "unrecognized");
     const freshness = live.fetchedAt ? " Data fetched at " + live.fetchedAt + "." : "";
     return { ...result, response: summary + freshness, action: result.action, liveData: live.data, context: { ...result.context, lastTarget: result.context.lastTarget } };
 }
