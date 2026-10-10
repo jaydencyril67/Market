@@ -150,8 +150,22 @@ function reasonOverLiveData(input:string,live:LiveDataResult,timeZone="UTC"):str
   if(/how many|count|unread/.test(query))return report("Returned notification records",[["total",items.length],["scope","records returned by CryBots"]])!;
  }
  if(live.topic==="account-state"&&/balance|how much|portfolio|holdings|assets|available/.test(query)){
+  const record=asRecord(data);
+  if(/balance|how much|available/.test(query)){
+   const balance=record?.balance??record?.usdtBalance??record?.totalBalance??record?.walletBalance;
+   const available=record?.available??record?.availableBalance;
+   const reserved=record?.reserved??record?.usdtReserved;
+   const validAmount=(value:unknown)=>typeof value==="number"&&Number.isFinite(value);
+   if(validAmount(balance)){
+    const currency=typeof record?.currency==="string"?record.currency:"USDT";
+    const parts=["Your current balance is "+formatAmount(balance,currency)+ "."];
+    if(validAmount(available))parts.push("Available to use: "+formatAmount(available,currency)+".");
+    if(validAmount(reserved))parts.push("Reserved: "+formatAmount(reserved,currency)+".");
+    return parts.join(" ");
+   }
+  }
   const summary=explicitBalanceSummary(data);
-  return summary?report("Current account data",[["reported balances",summary]]):"Account data was retrieved, but no recognized balance field was returned; a financial value cannot be inferred.";
+  return summary?report("Current account data",[["reported balances",summary]]):"I retrieved your account data, but it did not include a verified balance value, so I can't safely state your current balance.";
  }
  if(live.topic==="market"&&Array.isArray(data)&&data.length&&/price|market|movers|change|symbol|trading/.test(query)){
   const rows=data.slice(0,5).map((x:any)=>{const item=asRecord(x);return item?facts([["symbol",item.symbol??item.asset??item.pair],["price",item.price??item.lastPrice??item.currentPrice],["24h change",item.change24h??item.priceChangePercent??item.changePercent],["currency",item.currency]]).join("; "):"";}).filter(Boolean);
