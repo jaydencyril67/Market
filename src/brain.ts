@@ -128,6 +128,26 @@ export function think(input:string,context:BrainContext={}):BrainResult{
    return{intent:`verified:${selected.id}`,confidence:.88,response,action:{type:"none"},normalized,alternatives:[],needsClarification:false,entities,context:{...context,history:[...(context.history??[]),normalized].slice(-10),entities,lastKnowledgeId:selected.id,lastKnowledgeTopic:selected.topic}};
   }
  }
+ const clickRequest=/\\b(?:click|tap|press|activate)\\s+(.+?)\\s*$/.exec(normalized);
+ if(clickRequest){
+  const requested=clickRequest[1].replace(/^(?:the|on)\\s+/,"").trim();
+  const controls=(context.runtimeControls??[]).filter(control=>control&&typeof control.id==="string"&&typeof control.label==="string"&&!control.disabled);
+  const matches=controls.map(control=>({control,label:normalize(control.label)})).filter(item=>{
+   const label=item.label;
+   return label===requested||label.startsWith(requested+" —")||label.endsWith(" — "+requested)||label.includes(" — "+requested);
+  });
+  if(matches.length===1){
+   const selected=matches[0].control;
+   const sensitive=/\\b(withdraw|transfer|delete|remove|disable|revoke|reset|password|security code|confirm deletion|close account|submit|purchase|buy|sell|rent|activate|deactivate|create|save changes)\\b/i.test(selected.label);
+   const response=sensitive
+    ? "I found the "+selected.label+" control, but I won't trigger a financial, destructive, security-sensitive, or state-changing action by voice without a dedicated confirmation flow. Please review and use the control directly."
+    : "I found the visible "+selected.label+" control on this page.";
+   return{intent:sensitive?"runtime-control-needs-confirmation":"runtime-control-click",confidence:.94,response,action:sensitive?{type:"none"}:{type:"click",target:selected.id},normalized,alternatives:[],needsClarification:false,entities,context:{...context,history:[...(context.history??[]),normalized].slice(-10),entities}};
+  }
+  if(matches.length>1){
+   return{intent:"runtime-control-ambiguous",confidence:.5,response:"I found more than one matching visible control. Please say the full button label so I don't activate the wrong one.",action:{type:"none"},normalized,alternatives:[],needsClarification:true,entities,context:{...context,history:[...(context.history??[]),normalized].slice(-10),entities}};
+  }
+ }
  if(asksAboutCurrentPage(input)){
   const response=answerFromRuntimePage(context);
   return{intent:"runtime-page-overview",confidence:.9,response,action:{type:"none"},normalized,alternatives:[],needsClarification:false,entities,context:{...context,history:[...(context.history??[]),normalized].slice(-10),entities}};
