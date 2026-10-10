@@ -27,6 +27,18 @@ async function main():Promise<void>{
   }
  });
 
+ test("current date and time use the supplied live clock and device timezone",()=>{
+  const clock={runtimeClock:{now:"2026-10-10T10:00:00.000Z",timeZone:"Africa/Lagos",locale:"en-GB"}};
+  const time=think("what time is it?",clock);
+  assert(time.intent==="current-date-time","time question should use the dedicated clock handler");
+  assert(time.response.includes("11:00"),"10:00 UTC should be 11:00 in Africa/Lagos; got "+time.response);
+  assert(time.response.includes("Africa/Lagos"),"time reply should name the timezone");
+  const date=think("what's today's date?",clock);
+  assert(date.response.includes("Saturday, 10 October 2026"),"date reply should use the supplied timestamp; got "+date.response);
+  const missing=think("what time is it?");
+  assert(missing.response.includes("won't guess"),"missing clock context must not trigger an invented time");
+ });
+
  test("normalization handles casual language and common typos",()=>{
   assert(normalize("Wanna check my balnce pls") === "want to check my balance please","normalization should expand slang and correct supported typos");
   assert(normalize("  ") === "","blank input should normalize to an empty string");
