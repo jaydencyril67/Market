@@ -53,8 +53,8 @@ const goalGuides:GoalGuide[]=[
 const detectGoal=(input:string):GoalGuide|undefined=>{
  const text=normalize(input);
  const goalFraming=/\b(help me understand|help me improve|help me review|help me evaluate|help me compare|i want to understand|i want to improve|i want to review|i want to compare|help me figure out|i am trying to understand|i'm trying to understand|i need to know|help me figure|i want to know|trying to find out|can you help me|how can i tell|how do i know)\b/.test(text);
- const botGoal=/\b(which|what|why|how|best|worst|profitable|profit|losing|performance|performing|results|returns|making money)\b/.test(text)&&/\b(bot|bots|trading bot|trade history|trades)\b/.test(text);
- const accountGoal=/\b(why|where|how|understand|compare|check|review|missing|lower|dropped|changed|difference|movement|reconcile)\b/.test(text)&&/\b(account|money|funds|balance|assets|portfolio|deposit|withdrawal|transaction)\b/.test(text);
+ const botGoal=/\b(which|best|worst|profitable|profit|losing|performance|performing|results|returns|making money|earning)\b/.test(text)&&/\b(bot|bots|trading bot|trade history|trades)\b/.test(text);
+ const accountGoal=/\b(why|explain|compare|review|missing|lower|dropped|changed|difference|movement|reconcile|where did .* go)\b/.test(text)&&/\b(account|money|funds|balance|assets|portfolio|transaction|transactions)\b/.test(text);
  const webhookGoal=/\b(not working|failed|failing|not delivering|delivery|deliver|missing|troubleshoot|debug|why|check|fix)\b/.test(text)&&/\b(webhook|webhooks|event|notification)\b/.test(text);
  const securityGoal=/\b(secure|security|protect|protection|safe|safety|suspicious|unfamiliar|risk)\b/.test(text)&&/\b(account|device|session|api key|keys|security|login|logged in)\b/.test(text);
  if((goalFraming&&/\b(bot|bots|trading bot|performance|performing|profitability|results)\b/.test(text))||botGoal)return goalGuides[0];
