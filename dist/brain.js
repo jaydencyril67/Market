@@ -123,7 +123,7 @@ const asksAboutBalance = (input) => {
     const text = (0, exports.normalize)(input);
     if (/\b(withdraw|cash out|transfer|send|deposit|buy|sell|activate|deactivate)\b/.test(text))
         return false;
-    return /\b(usdt balance|balance of usdt|balance in usdt|account balance|available balance|my balance|show my balance|check my balance|check balance|show my usdt balance|check my usdt balance|what is my balance|what s my balance|what is my usdt balance|what s my usdt balance|how much usdt do i have|how much do i have|how much balance do i have)\b/.test(text);
+    return /\b(usdt balance|balance of usdt|balance in usdt|account balance|available balance|current balance|my current balance|my balance|show my balance|tell me my balance|check my balance|check balance|show my usdt balance|check my usdt balance|what is my (current )?balance|what s my (current )?balance|what is my usdt balance|what s my usdt balance|how much usdt do i have|how much do i have|how much balance do i have)\b/.test(text);
 };
 const answerFromRuntimePage = (context) => {
     const snapshot = context.runtimePageSnapshot;
@@ -290,8 +290,8 @@ function think(input, context = {}) {
         return { intent: "app-map-adaptation", confidence: .96, response, action: { type: "none" }, normalized, alternatives: [], needsClarification: false, entities, context: { ...context, history: [...(context.history ?? []), normalized].slice(-10), entities } };
     }
     if (asksAboutBalance(input)) {
-        const response = (0, compose_1.composeBalanceNavigationResponse)("details");
-        return { intent: "balance", confidence: .98, response, action: { type: "navigate", target: "details" }, normalized, alternatives: [], needsClarification: false, entities, context: { ...context, lastIntent: "balance", lastTarget: "details", history: [...(context.history ?? []), normalized].slice(-10), responseHistory: rememberResponse(context, response), entities } };
+        const response = "I'll check your current balance using your live CryBots account data.";
+        return { intent: "balance", confidence: .99, response, action: { type: "none" }, normalized, alternatives: [], needsClarification: false, entities, context: { ...context, lastIntent: "balance", history: [...(context.history ?? []), normalized].slice(-10), responseHistory: rememberResponse(context, response), entities } };
     }
     const detectedGoal = detectGoal(input);
     if (context.activeGoal && isGoalFollowUp(input)) {

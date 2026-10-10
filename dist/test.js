@@ -86,10 +86,10 @@ async function main() {
         assert(result.response.includes("Bot Command Center") || result.response.includes("Manage bots"), "reply should use verified runtime feature metadata");
         assert(result.action.type === "navigate" && result.action.target === "/bots", "runtime feature should resolve to its verified route");
     });
-    test("a balance request resolves to the balance intent", () => {
+    test("a balance request resolves without navigating away", () => {
         const result = (0, brain_1.think)("check my balance");
         assert(result.intent === "balance", "balance intent should win for a direct balance request");
-        assert(result.action.type === "navigate" && result.action.target === "details", "balance request should open the details route");
+        assert(result.action.type === "none", "balance questions should be answered in the assistant, not by navigating to a page");
     });
     test("meaningful follow-up repeats a known safe destination but does not invent one", () => {
         const session = new session_1.BrainSession();
@@ -139,6 +139,14 @@ async function main() {
         assert(result.response.includes("Data retrieved"), "live response should use natural retrieval wording");
         assert(result.response.includes("11:00:00"), "UTC fetch time should be shown in Africa/Lagos local time; got " + result.response);
         assert(!result.response.includes("2026-10-10T10:00:00.000Z"), "raw ISO timestamps must not leak into the conversational reply");
+    });
+    await testAsync("live balance question answers directly with verified account amounts and no navigation", async () => {
+        const bridge = { query: async (query) => ({ topic: query.topic, ok: true, data: { balance: 125.5, available: 100.25, reserved: 25.25 }, fetchedAt: "2026-10-10T10:00:00.000Z" }) };
+        const result = await (0, think_1.thinkLive)("what's my current balance?", { runtimeClock: { now: "2026-10-10T10:00:00.000Z", timeZone: "Africa/Lagos", locale: "en-GB" } }, bridge, { userId: "user-1" });
+        assert(result.action.type === "none", "answering a balance must not trigger navigation");
+        assert(result.response.includes("125.50 USDT"), "reply should state the live balance; got " + result.response);
+        assert(result.response.includes("100.25 USDT"), "reply should state the live available amount; got " + result.response);
+        assert(result.response.includes("25.25 USDT"), "reply should state reserved funds; got " + result.response);
     });
     await testAsync("live balance reasoning never infers a missing financial value", async () => {
         const seen = [];
