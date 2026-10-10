@@ -81,7 +81,7 @@ export function composeGoalResponse(goalId:string,topics:string[],target:string,
   "account-security":{subject:"account security",method:"review",evidence:"active sessions and integration permissions for unfamiliar access",caution:"authentication codes and integration secrets should remain private"}
  };
  const profile=profiles[goalId]??{subject:"the requested task",method:"verify",evidence:"the available records and current feature state",caution:"missing data should not be treated as proof"};
- const featureNames=facts.filter(fact=>fact.route).slice(0,3).map(fact=>titleCase(fact.route!));
+
  const opening=choose(["For "+profile.subject+",","To investigate "+profile.subject+",","A useful way to approach "+profile.subject+" is to"],seed);
  const instruction=opening+" "+profile.method+" "+profile.evidence+".";
  const caution=" Keep in mind that "+profile.caution+".";
