@@ -64,7 +64,12 @@ const detectGoal=(input:string):GoalGuide|undefined=>{
  return undefined;
 };
 const isGoalFollowUp=(input:string)=>/^(what should i check|what should i look at|what next|what do i check next|which one is best|which is best|which one is worst|why is it losing|how do i know|how can i tell|what does that mean|how do i improve|what should i do|and what about the results|what about my data|what do the records say|what should i compare|can you check that|check it for me|then what|what about now)$/.test(normalize(input));
-const asksAboutCurrentPage=(input:string)=>/\b(what can i do here|what can i do on this page|what can you do here|what buttons are available|which buttons are available|what controls are available|what controls do i have|what is on this page|what can you see here|show me the controls|what actions are available)\b/.test(normalize(input));
+const asksAboutCurrentPage=(input:string)=>/\\b(what can i do here|what can i do on this page|what can you do here|what buttons are available|which buttons are available|what controls are available|what controls do i have|what is on this page|what can you see here|show me the controls|what actions are available)\\b/.test(normalize(input));
+const asksAboutBalance=(input:string)=>{
+ const text=normalize(input);
+ if(/\\b(withdraw|cash out|transfer|send|deposit|buy|sell|activate|deactivate)\\b/.test(text))return false;
+ return /\\b(usdt balance|balance of usdt|balance in usdt|account balance|available balance|my balance|show my balance|check my balance|check balance|show my usdt balance|check my usdt balance|what is my balance|what s my balance|what is my usdt balance|what s my usdt balance|how much usdt do i have|how much do i have|how much balance do i have)\\b/.test(text);
+};
 const answerFromRuntimePage=(context:BrainContext)=>{
  const snapshot=context.runtimePageSnapshot;
  const page=(snapshot?.title||context.runtimePage||"current page").replace(/^\//,"").replace(/[-_/]+/g," ").trim()||"current page";
@@ -130,7 +135,11 @@ export function think(input:string,context:BrainContext={}):BrainResult{
    : chooseResponse(responsePool(first.intent),context.responseHistory??[],first.input||input);
   return{intent:first.intent,confidence:first.confidence,response,action:first.action,normalized:normalize(input),alternatives:steps.map(s=>s.intent),needsClarification:false,entities:context.entities??{},context:{...context,lastIntent:first.intent,lastTarget:first.action.type==="navigate"?first.action.target:context.lastTarget,history:[...(context.history??[]),normalize(input)].slice(-10),responseHistory:rememberResponse(context,response),decision}};
  }
- const normalized=normalize(input);const entities=extractEntities(input,context.entities);const references=resolveReferences(input,context,entities);
+ const normalized=normalize(input);const entities=extractEntities(input,context.entities);const references=resolveReferences(input,context.entities,entities);
+ if(asksAboutBalance(input)){
+  const response="I’ll open Details to check your current USDT balance.";
+  return{intent:"balance",confidence:.98,response,action:{type:"navigate",target:"details"},normalized,alternatives:[],needsClarification:false,entities,context:{...context,lastIntent:"balance",lastTarget:"details",history:[...(context.history??[]),normalized].slice(-10),responseHistory:rememberResponse(context,response),entities}};
+ }
  const detectedGoal=detectGoal(input);
  if(context.activeGoal&&isGoalFollowUp(input)){
   const guide=goalGuides.find(item=>item.id===context.activeGoal);
