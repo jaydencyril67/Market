@@ -1,6 +1,7 @@
 import {ActionPlan,ActionPlanStep,BrainReference,BrainStep} from "../types";
 
 export function buildActionPlan(steps:BrainStep[],references:BrainReference[]=[]):ActionPlan{
+ void references;
  const plan:ActionPlanStep[]=steps.map((step,i)=>{
   const alternatives=step.alternatives??[];
   const runnerUp=alternatives[0];
