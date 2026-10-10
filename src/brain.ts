@@ -121,7 +121,11 @@ export function think(input:string,context:BrainContext={}):BrainResult{
   const steps=requests.map(part=>{const rankedPart=intents.map(intent=>({intent,confidence:score(part,intent)})).sort((a,b)=>b.confidence-a.confidence);const bestPart=rankedPart[0];const entitiesPart=extractEntities(part,context.entities);const refsPart=resolveReferences(part,context,entitiesPart);return{intent:bestPart?.intent.id??"",confidence:bestPart?.confidence??0,input:part,action:bestPart?.intent.action??{type:"none"},references:refsPart};});
   const decision=decide(steps,intents);const actionPlan=buildActionPlan(steps,steps.flatMap(s=>s.references));const execution=compileExecution(actionPlan,context.entities??{});decision.reason+=" Action plan: "+actionPlan.status+". Execution: "+execution.status+". ";
   if(decision.mode==="clarify")return{intent:null,confidence:Math.min(...steps.map(s=>s.confidence)),response:failureResponse("unclear",input,context),action:{type:"none"},normalized:normalize(input),alternatives:steps.map(s=>s.intent).filter(Boolean),needsClarification:true,entities:context.entities??{},context:{...context,decision,history:[...(context.history??[]),normalize(input)].slice(-10)}};
-  const first=steps[0];const response=chooseResponse(responsePool(first.intent),context.responseHistory??[],first.input||input);
+  const first=steps[0];
+  const plannedSteps=steps.map((step,index)=>`${index+1}. ${step.input}`);
+  const response=decision.mode==="sequence"
+   ? "I mapped your request into this sequence: "+plannedSteps.join("; ")+". I'll handle the first step only, then we should verify the visible result before continuing. I won't treat later steps as completed yet."
+   : chooseResponse(responsePool(first.intent),context.responseHistory??[],first.input||input);
   return{intent:first.intent,confidence:first.confidence,response,action:first.action,normalized:normalize(input),alternatives:steps.map(s=>s.intent),needsClarification:false,entities:context.entities??{},context:{...context,lastIntent:first.intent,lastTarget:first.action.type==="navigate"?first.action.target:context.lastTarget,history:[...(context.history??[]),normalize(input)].slice(-10),responseHistory:rememberResponse(context,response),decision}};
  }
  const normalized=normalize(input);const entities=extractEntities(input,context.entities);const references=resolveReferences(input,context,entities);
