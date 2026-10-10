@@ -12,6 +12,7 @@ export type {Executor} from "./execution/runtime";
 export {crybotsSource,verifiedFacts} from "./knowledge/crybotsSource";
 export {crybotsAudit,verifiedRoutes,verifiedRelationships,dynamicDataRules} from "./knowledge/crybotsAudit";
 export {thinkLive} from "./live/think";
+export {compareAppMap} from "./knowledge/adaptation";
 export type {ThinkLiveOptions} from "./live/think";
 export * from "./live/types";
 export * from "./live/router";
