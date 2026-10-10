@@ -29,38 +29,37 @@ function explicitBalanceSummary(data:unknown):string|undefined{
   return parts.length?parts.join("; "):undefined;
 }
 function summarizeGoal(goal:string,records:Record<string,unknown>):string{
-  const bots=asRecord(records.bots);
-  const investments=Array.isArray(bots?.investments)?bots.investments:Array.isArray(records.bots)?records.bots:[];
-  const transactions=Array.isArray(records.transactions)?records.transactions:[];
-  const account=records["account-state"];
-  const webhooksData=asRecord(records.webhooks);
-  const webhooks=Array.isArray(webhooksData?.webhooks)?webhooksData.webhooks:Array.isArray(records.webhooks)?records.webhooks:[];
-  const deliveryValue=webhooksData?.deliveries??webhooksData?.deliveryHistory??webhooksData?.history??webhooksData?.logs;
-  const deliveries=Array.isArray(deliveryValue)?deliveryValue:[];
-  if(goal==="bot-performance"){
-    const active=investments.filter((item:any)=>item?.active===true||["activating","active"].includes(String(item?.lifecycleStatus??item?.status??"").toLowerCase()));
-    let response="I checked "+investments.length+" bot investment record"+(investments.length===1?"":"s")+" and "+transactions.length+" transaction record"+(transactions.length===1?"":"s")+". ";
-    response+=active.length+" bot investment"+(active.length===1?" is":"s are")+" marked active or activating. ";
-    response+="That confirms status, not profitability: I will only rank bots when the returned records provide comparable profit or loss figures for the same period.";
-    return response;
-  }
-  if(goal==="account-overview"){
-    const balance=explicitBalanceSummary(account);
-    let response="I checked the connected account-state and transaction records. ";
-    if(balance)response+="The returned account data reports "+balance+". ";
-    else response+="The account response did not expose a recognized balance field, so I won't guess your balance. ";
-    response+="I also found "+transactions.length+" transaction record"+(transactions.length===1?"":"s")+" in the returned history.";
-    return response;
-  }
-  const enabled=webhooks.filter((item:any)=>item?.enabled===true).length;
-  let response="I checked "+webhooks.length+" webhook configuration record"+(webhooks.length===1?"":"s")+". ";
-  response+=enabled+" are marked enabled and "+(webhooks.length-enabled)+" are marked disabled or not explicitly enabled. ";
-  if(deliveryValue!==undefined)response+="The returned payload includes "+deliveries.length+" delivery/log record"+(deliveries.length===1?"":"s")+". ";
-  else response+="The returned payload did not include a recognizable delivery-history list, so configuration alone cannot confirm delivery success. ";
-  response+="I won't infer delivery success from enabled status alone.";
-  return response;
+ const recordList=(value:unknown,key:string)=>{const record=asRecord(value);return Array.isArray(record?.[key])?record[key] as any[]:Array.isArray(value)?value:[];};
+ const report=(subject:string,items:Array<[string,unknown]>)=>{
+  const facts=items.filter(([,value])=>value!==undefined&&value!==null&&String(value).trim()!=="").map(([label,value])=>label+": "+String(value));
+  return subject+(facts.length?" — "+facts.join("; "):"")+".";
+ };
+ if(goal==="bot-performance"){
+  const investments=recordList(records.bots,"investments"),transactions=recordList(records.transactions,"transactions");
+  const active=investments.filter((item:any)=>item?.active===true||["activating","active"].includes(String(item?.lifecycleStatus??item?.status??"").toLowerCase()));
+  return report("Bot performance review",[
+   ["bot investment records",investments.length],["transaction records",transactions.length],
+   ["active or activating investments",active.length],
+   ["performance limitation","status and record counts do not establish profitability; comparable profit/loss figures over the same period are required to rank bots"]
+  ]);
+ }
+ if(goal==="account-overview"){
+  const balance=explicitBalanceSummary(records["account-state"]),transactions=recordList(records.transactions,"transactions");
+  return report("Account overview",[
+   ["reported balance fields",balance],["returned transaction records",transactions.length],
+   ["data limitation",balance?"balance values reflect only the fields returned by CryBots":"no recognized balance field was returned, so the balance cannot be inferred"]
+  ]);
+ }
+ const webhookData=asRecord(records.webhooks),webhooks=recordList(records.webhooks,"webhooks");
+ const deliveryValue=webhookData?.deliveries??webhookData?.deliveryHistory??webhookData?.history??webhookData?.logs;
+ const deliveries=Array.isArray(deliveryValue)?deliveryValue:undefined;
+ const enabled=webhooks.filter((item:any)=>item?.enabled===true).length;
+ return report("Webhook troubleshooting",[
+  ["configuration records",webhooks.length],["enabled records",enabled],["disabled or not explicitly enabled records",webhooks.length-enabled],
+  ["delivery/log records",deliveries?.length],
+  ["delivery verification",deliveries?"inspect individual returned delivery results":"configuration alone does not establish delivery success"]
+ ]);
 }
-
 
 function reasonOverLiveData(input:string,live:LiveDataResult):string|undefined{
  const query=input.toLowerCase(),data=live.data;
