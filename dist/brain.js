@@ -3,7 +3,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.normalize = void 0;
 exports.think = think;
 const core_1 = require("./intents/core");
-const core_2 = require("./responses/core");
 const compose_1 = require("./responses/compose");
 const synonyms_1 = require("./language/synonyms");
 const app_1 = require("./knowledge/app");
@@ -43,35 +42,6 @@ const variants = (value) => { const n = (0, exports.normalize)(value); const out
 } return [...out]; };
 const tokenSet = (text) => new Set((0, exports.normalize)(text).split(" ").filter(Boolean));
 const containsPhrase = (text, phrase) => Boolean(phrase) && (" " + (0, exports.normalize)(text) + " ").includes(" " + (0, exports.normalize)(phrase) + " ");
-const responsePool = (intentId) => { const map = { back: "back_success", forward: "forward_success", scroll: "scroll_success", scroll_nowbar: "acknowledgement", expand_nowbar: "acknowledgement", collapse_nowbar: "acknowledgement" }; return core_2.responses[map[intentId] ?? intentId] ?? core_2.responses.fallback; };
-const hashText = (value) => { let h = 2166136261; for (let i = 0; i < value.length; i++) {
-    h ^= value.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-} return h >>> 0; };
-const responseOpening = (value) => (0, exports.normalize)(value).split(" ").slice(0, 2).join(" ");
-const chooseResponse = (pool, history = [], seedText = "") => {
-    if (!pool.length)
-        return core_2.responses.fallback[0];
-    const recent = history.slice(-8);
-    const exactRecent = new Set(recent);
-    let candidates = pool.filter(x => !exactRecent.has(x));
-    if (!candidates.length)
-        candidates = pool;
-    const recentOpenings = new Set(recent.map(responseOpening).filter(Boolean));
-    const differentOpening = candidates.filter(x => !recentOpenings.has(responseOpening(x)));
-    if (differentOpening.length)
-        candidates = differentOpening;
-    const seed = hashText([seedText, ...recent].join("|"));
-    return candidates[seed % candidates.length];
-};
-const failureResponse = (kind, input, context) => {
-    const hasContext = Boolean((context.history?.length ?? 0) > 0 || (context.lastIntent && context.lastIntent !== ""));
-    const shortReference = /\b(that|this|it|again|same|there|then|yes|no|okay|ok)\b/.test((0, exports.normalize)(input));
-    const pool = kind === "unclear"
-        ? (hasContext || shortReference ? core_2.responses.context_unclear : core_2.responses.unclear)
-        : (hasContext && shortReference ? core_2.responses.context_fallback : core_2.responses.fallback);
-    return chooseResponse(pool, context.responseHistory ?? [], input);
-};
 const distance = (a, b) => { const x = (0, exports.normalize)(a), y = (0, exports.normalize)(b), d = Array.from({ length: y.length + 1 }, (_, i) => i); for (let i = 1; i <= x.length; i++) {
     let prev = d[0];
     d[0] = i;
@@ -235,7 +205,7 @@ function think(input, context = {}) {
         const execution = (0, executor_1.compileExecution)(actionPlan, context.entities ?? {});
         decision.reason += " Action plan: " + actionPlan.status + ". Execution: " + execution.status + ". ";
         if (decision.mode === "clarify")
-            return { intent: null, confidence: Math.min(...steps.map(s => s.confidence)), response: failureResponse("unclear", input, context), action: { type: "none" }, normalized: (0, exports.normalize)(input), alternatives: steps.map(s => s.intent).filter(Boolean), needsClarification: true, entities: context.entities ?? {}, context: { ...context, decision, entities: (0, entities_1.extractEntities)(input, context.entities), references: steps.flatMap(step => step.references), history: [...(context.history ?? []), (0, exports.normalize)(input)].slice(-10) } };
+            return { intent: null, confidence: Math.min(...steps.map(s => s.confidence)), response: (0, compose_1.composeClarificationResponse)("unclear", input, context), action: { type: "none" }, normalized: (0, exports.normalize)(input), alternatives: steps.map(s => s.intent).filter(Boolean), needsClarification: true, entities: context.entities ?? {}, context: { ...context, decision, entities: (0, entities_1.extractEntities)(input, context.entities), references: steps.flatMap(step => step.references), history: [...(context.history ?? []), (0, exports.normalize)(input)].slice(-10) } };
         const first = steps[0];
         const plannedSteps = steps.map((step, index) => `${index + 1}. ${step.input}`);
         const response = decision.mode === "sequence"
@@ -354,13 +324,13 @@ function think(input, context = {}) {
         }
     }
     if (!best || best.confidence < .30) {
-        const response = failureResponse("fallback", input, context);
+        const response = (0, compose_1.composeClarificationResponse)("fallback", input, context);
         return { intent: null, confidence: best?.confidence ?? 0, response, action: { type: "none" }, normalized, alternatives: ranked.slice(0, 3).filter(x => x.confidence > 0).map(x => x.intent.id), needsClarification: false, entities, context: { ...context, entities, references, responseHistory: rememberResponse(context, response) } };
     }
     const alternatives = ranked.filter(x => x.confidence > 0).slice(0, 3);
     const ambiguous = alternatives.length > 1 && best.confidence < .7 && best.confidence - alternatives[1].confidence < .12;
     if (ambiguous) {
-        const response = chooseResponse(core_2.responses.unclear, context.responseHistory ?? []);
+        const response = (0, compose_1.composeClarificationResponse)("unclear", input, context);
         return { intent: null, confidence: best.confidence, response, action: { type: "none" }, normalized, alternatives: alternatives.map(x => x.intent.id), needsClarification: true, entities, context: { ...context, pendingIntent: best.intent.id, entities, references, responseHistory: rememberResponse(context, response) } };
     }
     if (best.intent.id === "scroll") {
