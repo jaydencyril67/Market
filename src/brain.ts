@@ -72,6 +72,7 @@ const answerFromRuntimePage=(context:BrainContext)=>{
  const states=(snapshot?.states??[]).filter(Boolean).slice(0,8);
  const controls=(context.runtimeControls??[]).filter(control=>control&&typeof control.label==="string"&&control.label.trim()).slice(0,12);
  const forms=(snapshot?.forms??[]).slice(0,5);
+ const fields=(snapshot?.fields??[]).filter(field=>field&&typeof field.label==="string"&&field.label.trim()).slice(0,12);
  const parts:string[]=[];
  parts.push("I inspected the current visible interface on "+page+".");
  if(headings.length)parts.push("Page sections: "+headings.join("; ")+".");
@@ -83,6 +84,7 @@ const answerFromRuntimePage=(context:BrainContext)=>{
   parts.push("Forms and fields: "+descriptions.join("; ")+". I read field labels and metadata only, not the entered values.");
  }
  if(states.length)parts.push("Visible status or selected-state indicators: "+states.join("; ")+".");
+ if(fields.length)parts.push("Visible fields outside explicit forms: "+fields.map(field=>field.label+" ("+field.type+(field.required?", required":"")+(field.disabled?", disabled":"")+(field.hasValue?", already filled":"")+(field.section?", in "+field.section:"")+")").join("; ")+". I read field labels and metadata only, not entered values.");
  if(controls.length){
   const enabled=controls.filter(control=>!control.disabled).map(control=>control.label);
   const disabled=controls.filter(control=>control.disabled).map(control=>control.label);
