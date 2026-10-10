@@ -2,6 +2,8 @@ import {think,normalize} from "./brain";
 import {BrainSession} from "./session";
 import {executeCommand} from "./execution/runtime";
 import {ExecutionCommand} from "./types";
+import {thinkLive} from "./live/think";
+import {LiveCryBotsBridge,LiveQuery} from "./live/types";
 
 function assert(condition:unknown,message:string):asserts condition {
  if(!condition)throw new Error("Behavior test failed: "+message);
@@ -27,6 +29,8 @@ async function main():Promise<void>{
   assert(typeof result.confidence==="number"&&result.confidence>=0&&result.confidence<=1,"confidence should be within 0..1");
   assert(result.action!==undefined&&typeof result.action.type==="string","an action shape should be present");
   assert(result.normalized==="open my bots","normalized input should be retained");
+  assert(result.action.type==="navigate"&&result.action.target==="my-bots","request should resolve to the My Bots route");
+  assert(result.intent==="bots","request should resolve to the bots intent");
  });
 
  test("brain handles different user phrasings without crashing",()=>{
@@ -50,6 +54,12 @@ async function main():Promise<void>{
   }
  });
 
+ test("a balance request resolves to the balance intent",()=>{
+  const result=think("check my balance");
+  assert(result.intent==="balance","balance intent should win for a direct balance request");
+  assert(result.action.type==="navigate"&&result.action.target==="details","balance request should open the details route");
+ });
+
  test("conversation session retains context and can reset",()=>{
   const session=new BrainSession();
   session.ask("open my bots");
@@ -66,6 +76,22 @@ async function main():Promise<void>{
   assert(result.context.decision!==undefined,"decision metadata should be attached");
   assert(["single","sequence","clarify"].includes(result.context.decision!.mode),"decision mode should be valid");
   assert(result.context.decision!.steps.length>=1,"decision should contain at least one step");
+ });
+
+ await testAsync("live balance reasoning never infers a missing financial value",async()=>{
+  const seen:LiveQuery[]=[];
+  const bridge:LiveCryBotsBridge={query:async query=>{seen.push(query);return{topic:query.topic,ok:true,data:{accountId:"account-1",unrelatedMetric:500},fetchedAt:"2026-10-10T00:00:00Z"};}};
+  const result=await thinkLive("check my balance",{},bridge);
+  assert(seen.length===1&&seen[0].topic==="account-state","balance request should query account-state data");
+  assert(result.response.toLowerCase().includes("cannot be inferred")||result.response.toLowerCase().includes("won’t guess"),"response should explain that missing balance cannot be inferred");
+  assert(!result.response.includes("500"),"unrelated numeric data must not be presented as a balance");
+ });
+
+ await testAsync("live bot summaries report returned status without claiming profitability",async()=>{
+  const bridge:LiveCryBotsBridge={query:async query=>({topic:query.topic,ok:true,data:{investments:[{botId:"BOT-7",status:"active",profit:99}]}})};
+  const result=await thinkLive("show my active bots",{},bridge);
+  assert(result.response.includes("BOT-7"),"active bot response should include the returned bot ID");
+  assert(!/profitable|profit is|earned|guaranteed/i.test(result.response),"status alone must not become a profitability claim");
  });
 
  await testAsync("sensitive actions are rejected until explicitly confirmed",async()=>{
