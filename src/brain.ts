@@ -121,8 +121,8 @@ const matchDiscoveredFeature=(input:string,features:NonNullable<BrainContext["di
 
 const clockRequestKind=(input:string):"date"|"time"|"both"|undefined=>{
  const text=normalize(input);
- const asksDate=/\\b(what (is|s) (the )?(current )?(date|day)|what (date|day) is it|today s date|current date|date today|what day of the week is it|tell me (the )?date|what is today)\\b/.test(text);
- const asksTime=/\\b(what (is|s) (the )?(current )?time|what time is it|current time|time now|tell me (the )?time)\\b/.test(text);
+ const asksDate=/\\b(what (is|s) (the )?(current )?(date|day)|what (date|day) is it|today s date|current date|date today|what day of the week is it|tell me (the )?date|what is today|date and time|time and date)\\b/.test(text);
+ const asksTime=/\\b(what (is|s) (the )?(current )?time|what time is it|current time|time now|tell me (the )?time|date and time|time and date)\\b/.test(text);
  if(asksDate&&asksTime)return "both";
  if(asksDate)return "date";
  if(asksTime)return "time";
