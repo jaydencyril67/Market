@@ -1,3 +1,5 @@
+import type { BrainDiscoveredFeature, BrainRuntimeFact } from "../types";
+
 export type LiveTopic="account-state"|"transactions"|"bots"|"market"|"webhooks"|"notifications";
 
 export type LiveQuery={
