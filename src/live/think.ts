@@ -63,66 +63,62 @@ function summarizeGoal(goal:string,records:Record<string,unknown>):string{
 
 
 function reasonOverLiveData(input:string,live:LiveDataResult):string|undefined{
-  const text=input.toLowerCase(); const data=live.data;
-  if(live.topic==="transactions"&&Array.isArray(data)){
-    if(!data.length)return "You do not have any recorded CryBots transactions yet."; const latest=asRecord(data[0]); if(!latest)return live.message;
-    const title=String(latest.title??latest.category??latest.direction??"Transaction");
-    const amount=latest.amount!==undefined&&latest.amount!==null?formatAmount(latest.amount,latest.currency??"USDT"):"an amount not recorded";
-    const status=latest.status?String(latest.status):"status not recorded";
-    const parsedDate=latest.createdAt?new Date(String(latest.createdAt)):null;
-    const when=parsedDate&&Number.isFinite(parsedDate.getTime())?parsedDate.toLocaleString():"date not recorded";
-    if(/latest|last|most recent|recent transaction/.test(text))return "Your latest recorded transaction is "+title+", amount "+amount+", status "+status+", recorded "+when+". This is from your CryBots transaction history.";
-    return live.message;
-  }
-  if(live.topic==="bots"){
-    const record=asRecord(data); const investments=Array.isArray(record?.investments)?record.investments:Array.isArray(data)?data:[];
-    const active=investments.filter((item:any)=>item?.active===true||["activating","active"].includes(String(item?.lifecycleStatus??"").toLowerCase()));
-    if(/which|what|show|list/.test(text)&&/active|running/.test(text)){
-      if(!active.length)return "None of your bot investments are currently active or activating."; const ids=active.map((item:any)=>item?.botId).filter(Boolean);
-      return ids.length?"Your active or activating bots are: "+ids.join(", ")+".":"You have "+active.length+" active or activating bot investment"+(active.length===1?"":"s")+".";
-    }
-    if(active.length===1&&/active|running|status/.test(text)){const id=active[0]?.botId;return id?"Bot "+id+" is currently active or activating.":live.message;}
-  }
-  if(live.topic==="webhooks"){
-    const record=asRecord(data); const webhooks=Array.isArray(record?.webhooks)?record.webhooks:[];
-    if(/which|what|show|list/.test(text)&&/webhook/.test(text)){if(!webhooks.length)return "You do not have any webhooks yet.";return webhooks.map((item:any)=>String(item?.name??item?._id??"Webhook")+" — "+(item?.enabled?"enabled":"disabled")).join("; ");}
-  }
-  if(live.topic==="notifications"){
-    const record=asRecord(data); const notifications=Array.isArray(record?.notifications)?record.notifications:[];
-    if(/latest|recent|last/.test(text)&&notifications.length){const n=asRecord(notifications[0]);if(n)return "Your latest notification is: "+String(n.title??n.message??"Notification")+".";}
-  }
-  if(live.topic==="account-state"&&(/balance|how much|portfolio|holdings|assets|available/.test(text))){
-    const summary=explicitBalanceSummary(data);
-    if(summary)return "Your current account data reports "+summary+".";
-    return "I retrieved your account data, but it did not include a recognized balance field. I won't guess a financial value.";
-  }
-  if(live.topic==="market"&&Array.isArray(data)&&data.length&&(/price|market|movers|change|symbol|trading/.test(text))){
-    const rows=data.slice(0,5).map((item:any)=>{
-      const record=asRecord(item);if(!record)return "";
-      const symbol=record.symbol??record.asset??record.pair;
-      const price=record.price??record.lastPrice??record.currentPrice;
-      const change=record.change24h??record.priceChangePercent??record.changePercent;
-      if(!symbol||price===undefined||price===null)return "";
-      return String(symbol)+" "+formatAmount(price,record.currency??"USDT")+(change!==undefined&&change!==null?", 24h change "+String(change)+"%":"");
-    }).filter(Boolean);
-    if(rows.length)return "Current market data returned: "+rows.join("; ")+".";
-  }
-  if(live.topic==="bots"){
-    const record=asRecord(data);const investments=Array.isArray(record?.investments)?record.investments:Array.isArray(data)?data:[];
-    if(/how many|count|total|my bots|bots do i have/.test(text)&&investments.length>=0){
-      const active=investments.filter((item:any)=>item?.active===true||["activating","active"].includes(String(item?.lifecycleStatus??item?.status??"").toLowerCase())).length;
-      return "The live response contains "+investments.length+" bot investment record"+(investments.length===1?"":"s")+", including "+active+" marked active or activating. This is a status count, not a profitability assessment.";
-    }
-  }
-  if(live.topic==="webhooks"){
-    const record=asRecord(data);const webhooks=Array.isArray(record?.webhooks)?record.webhooks:Array.isArray(data)?data:[];
-    if(/how many|count|total/.test(text)&&/webhook/.test(text))return "The live response contains "+webhooks.length+" webhook configuration record"+(webhooks.length===1?"":"s")+".";
-  }
-  if(live.topic==="notifications"){
-    const record=asRecord(data);const notifications=Array.isArray(record?.notifications)?record.notifications:Array.isArray(data)?data:[];
-    if(/how many|count|unread/.test(text))return "The live response contains "+notifications.length+" notification record"+(notifications.length===1?"":"s")+". This count only reflects the records returned by CryBots.";
+ const query=input.toLowerCase(),data=live.data;
+ const facts=(values:Array<[string,unknown]>)=>values.filter(([,v])=>v!==undefined&&v!==null&&String(v).trim()!=="").map(([k,v])=>k+": "+String(v));
+ const report=(subject:string,values:Array<[string,unknown]>)=>{const entries=facts(values);return entries.length?subject+" — "+entries.join("; ")+".":undefined;};
+ if(live.topic==="transactions"&&Array.isArray(data)){
+  if(!data.length)return report("Transaction history",[["record count",0]]);
+  const item=asRecord(data[0]);if(!item)return live.message;
+  if(/latest|last|most recent|recent transaction/.test(query)){
+   const date=item.createdAt?new Date(String(item.createdAt)):null;
+   return report("Latest recorded transaction",[
+    ["type",item.title??item.category??item.direction],
+    ["amount",item.amount!==undefined?formatAmount(item.amount,item.currency??"USDT"):undefined],
+    ["status",item.status],
+    ["recorded",date&&Number.isFinite(date.getTime())?date.toLocaleString():undefined]
+   ])??live.message;
   }
   return live.message;
+ }
+ if(live.topic==="bots"){
+  const record=asRecord(data),items=Array.isArray(record?.investments)?record.investments:Array.isArray(data)?data:[];
+  const active=items.filter((x:any)=>x?.active===true||["activating","active"].includes(String(x?.lifecycleStatus??x?.status??"").toLowerCase()));
+  if(/which|what|show|list/.test(query)&&/active|running/.test(query)){
+   const ids=active.map((x:any)=>x?.botId).filter(Boolean);
+   return report("Active or activating bot investments",[["count",active.length],["bot IDs",ids.length?ids.join(", "):undefined]])!;
+  }
+  if(active.length===1&&/active|running|status/.test(query)){
+   const item=asRecord(active[0]);
+   return report("Bot status",[["bot ID",item?.botId],["lifecycle status",item?.lifecycleStatus??item?.status??(item?.active===true?"active":undefined)]])??live.message;
+  }
+  if(/how many|count|total|my bots|bots do i have/.test(query)){
+   return report("Returned bot investment records",[["total",items.length],["active or activating",active.length],["interpretation","status counts do not establish profitability"]])!;
+  }
+ }
+ if(live.topic==="webhooks"){
+  const record=asRecord(data),items=Array.isArray(record?.webhooks)?record.webhooks:Array.isArray(data)?data:[];
+  if(/which|what|show|list/.test(query)&&/webhook/.test(query)){
+   if(!items.length)return report("Webhook configurations",[["record count",0]]);
+   return items.map((x:any,i:number)=>"Webhook "+(i+1)+(facts([["name",x?.name??x?._id],["enabled",x?.enabled===true?"yes":x?.enabled===false?"no":undefined],["status",x?.status],["destination",x?.url??x?.endpoint]]).length?" — "+facts([["name",x?.name??x?._id],["enabled",x?.enabled===true?"yes":x?.enabled===false?"no":undefined],["status",x?.status],["destination",x?.url??x?.endpoint]]).join("; "):"")).join(". ")+".";
+  }
+  if(/how many|count|total/.test(query)&&/webhook/.test(query))return report("Returned webhook configuration records",[["total",items.length]])!;
+ }
+ if(live.topic==="notifications"){
+  const record=asRecord(data),items=Array.isArray(record?.notifications)?record.notifications:Array.isArray(data)?data:[];
+  if(/latest|recent|last/.test(query)&&items.length){
+   const item=asRecord(items[0]);if(item)return report("Latest notification",[["title",item.title],["message",item.message],["status",item.status],["created",item.createdAt]])??live.message;
+  }
+  if(/how many|count|unread/.test(query))return report("Returned notification records",[["total",items.length],["scope","records returned by CryBots"]])!;
+ }
+ if(live.topic==="account-state"&&/balance|how much|portfolio|holdings|assets|available/.test(query)){
+  const summary=explicitBalanceSummary(data);
+  return summary?report("Current account data",[["reported balances",summary]]):"Account data was retrieved, but no recognized balance field was returned; a financial value cannot be inferred.";
+ }
+ if(live.topic==="market"&&Array.isArray(data)&&data.length&&/price|market|movers|change|symbol|trading/.test(query)){
+  const rows=data.slice(0,5).map((x:any)=>{const item=asRecord(x);return item?facts([["symbol",item.symbol??item.asset??item.pair],["price",item.price??item.lastPrice??item.currentPrice],["24h change",item.change24h??item.priceChangePercent??item.changePercent],["currency",item.currency]]).join("; "):"";}).filter(Boolean);
+  if(rows.length)return "Returned market records: "+rows.map((row:string,i:number)=>"record "+(i+1)+" — "+row).join(". ")+".";
+ }
+ return live.message;
 }
 
 export async function thinkLive(input:string,context:BrainContext={},bridge:LiveCryBotsBridge,options:ThinkLiveOptions={}):Promise<BrainResult>{
