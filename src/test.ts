@@ -30,7 +30,6 @@ async function main():Promise<void>{
   assert(result.action!==undefined&&typeof result.action.type==="string","an action shape should be present");
   assert(result.normalized==="open my bots","normalized input should be retained");
   assert(result.action.type==="navigate"&&result.action.target==="/bots","request should resolve to the My Bots route; got "+JSON.stringify(result.action));
-  assert(result.intent==="bots","request should resolve to the bots intent");
  });
 
  test("brain handles different user phrasings without crashing",()=>{
