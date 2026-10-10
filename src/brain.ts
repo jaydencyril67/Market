@@ -12,7 +12,7 @@ import {splitRequests,decide} from "./reasoning/decision";
 import {buildActionPlan} from "./reasoning/planner";
 import {compileExecution} from "./reasoning/executor";
 const languageExpansions:Record<string,string>={
- "im":"i am","ive":"i have","ill":"i will","id":"i would","dont":"do not","doesnt":"does not","didnt":"did not",
+ "im":"i am","ive":"i have","ill":"i will","dont":"do not","doesnt":"does not","didnt":"did not",
  "cant":"cannot","couldnt":"could not","wouldnt":"would not","shouldnt":"should not","wont":"will not","isnt":"is not",
  "arent":"are not","wasnt":"was not","werent":"were not","whats":"what is","wheres":"where is","hows":"how is",
  "thats":"that is","theres":"there is","lets":"let us","wanna":"want to","gonna":"going to","gotta":"got to",
