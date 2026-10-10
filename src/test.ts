@@ -82,8 +82,16 @@ async function main():Promise<void>{
   const bridge:LiveCryBotsBridge={query:async query=>{seen.push(query);return{topic:query.topic,ok:true,data:{accountId:"account-1",unrelatedMetric:500},fetchedAt:"2026-10-10T00:00:00Z"};}};
   const result=await thinkLive("check my balance",{},bridge);
   assert(seen.length===1&&seen[0].topic==="account-state","balance request should query account-state data");
-  assert(result.response.toLowerCase().includes("cannot be inferred")||result.response.toLowerCase().includes("won’t guess"),"response should explain that missing balance cannot be inferred");
+  assert(result.response.toLowerCase().includes("cannot infer")||result.response.toLowerCase().includes("won’t guess"),"response should explain that missing balance cannot be inferred");
   assert(!result.response.includes("500"),"unrelated numeric data must not be presented as a balance");
+ });
+
+ await testAsync("live data failures identify the unavailable source without implying success",async()=>{
+  const bridge:LiveCryBotsBridge={query:async query=>({topic:query.topic,ok:false,data:null,message:"service timeout"})};
+  const result=await thinkLive("check my balance",{},bridge);
+  assert(result.response.toLowerCase().includes("account and balance data"),"failure should name the unavailable data domain");
+  assert(result.response.includes("service timeout"),"useful source error detail should be preserved");
+  assert(!/balance is|balance was|successfully retrieved/i.test(result.response),"failure must not imply that current data was retrieved");
  });
 
  await testAsync("live bot summaries report returned status without claiming profitability",async()=>{
