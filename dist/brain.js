@@ -197,7 +197,7 @@ function think(input, context = {}) {
     if (requests.length > 1) {
         const steps = requests.map(part => { const rankedPart = core_1.intents.map(intent => ({ intent, confidence: score(part, intent) })).sort((a, b) => b.confidence - a.confidence); const bestPart = rankedPart[0]; const entitiesPart = (0, entities_1.extractEntities)(part, context.entities); const refsPart = (0, references_1.resolveReferences)(part, context, entitiesPart); return { intent: bestPart?.intent.id ?? "", confidence: bestPart?.confidence ?? 0, input: part, action: bestPart?.intent.action ?? { type: "none" }, references: refsPart, alternatives: rankedPart.slice(1, 3).map(x => ({ intent: x.intent.id, confidence: x.confidence })) }; });
         if (steps.some(step => step.action.type === "api")) {
-            const response = "I can prepare one bot API operation at a time so I can validate the exact bot and amount and request approval for that specific action. Please send the bot operation by itself. No action has been sent.";
+            const response = (0, compose_1.composeApiClarification)("not-direct", "bot operation");
             return { intent: null, confidence: Math.min(...steps.map(step => step.confidence)), response, action: { type: "none" }, normalized: (0, exports.normalize)(input), alternatives: steps.map(step => step.intent).filter(Boolean), needsClarification: true, entities: context.entities ?? {}, context: { ...context, history: [...(context.history ?? []), (0, exports.normalize)(input)].slice(-10) } };
         }
         const decision = (0, decision_1.decide)(steps, core_1.intents);
@@ -207,9 +207,8 @@ function think(input, context = {}) {
         if (decision.mode === "clarify")
             return { intent: null, confidence: Math.min(...steps.map(s => s.confidence)), response: (0, compose_1.composeClarificationResponse)("unclear", input, context), action: { type: "none" }, normalized: (0, exports.normalize)(input), alternatives: steps.map(s => s.intent).filter(Boolean), needsClarification: true, entities: context.entities ?? {}, context: { ...context, decision, entities: (0, entities_1.extractEntities)(input, context.entities), references: steps.flatMap(step => step.references), history: [...(context.history ?? []), (0, exports.normalize)(input)].slice(-10) } };
         const first = steps[0];
-        const plannedSteps = steps.map((step, index) => `${index + 1}. ${step.input}`);
         const response = decision.mode === "sequence"
-            ? "I mapped your request into this sequence: " + plannedSteps.join("; ") + ". I'll handle the first step only, then we should verify the visible result before continuing. I won't treat later steps as completed yet."
+            ? (0, compose_1.composeSequenceResponse)(steps.map(step => step.input), first.action)
             : (0, compose_1.composeIntentResponse)(first.intent, first.action, first.input || input, context);
         return { intent: first.intent, confidence: first.confidence, response, action: first.action, normalized: (0, exports.normalize)(input), alternatives: steps.map(s => s.intent), needsClarification: false, entities: context.entities ?? {}, context: { ...context, lastIntent: first.intent, lastTarget: first.action.type === "navigate" ? first.action.target : context.lastTarget, history: [...(context.history ?? []), (0, exports.normalize)(input)].slice(-10), responseHistory: rememberResponse(context, response), decision } };
     }
@@ -221,28 +220,18 @@ function think(input, context = {}) {
         const changes = context.appMapChanges ?? [];
         let response;
         if (!context.appMapCompared) {
-            response = "I loaded the latest verified CryBots app map, but I don't have a previous map snapshot in this conversation to compare against. I won't guess which pages or controls are new.";
+            response = (0, compose_1.composeAppMapChangeResponse)("no-baseline", changes);
         }
         else if (!changes.length) {
-            response = "I compared the latest verified CryBots app map with the previous snapshot available to Brain. No route, feature name, description, or keyword changes were detected.";
+            response = (0, compose_1.composeAppMapChangeResponse)("unchanged", changes);
         }
         else {
-            const added = changes.filter(change => change.kind === "added");
-            const changed = changes.filter(change => change.kind === "changed");
-            const removed = changes.filter(change => change.kind === "removed");
-            const parts = [];
-            if (added.length)
-                parts.push("New verified features: " + added.map(change => change.name + " (" + change.route + ")").join(", "));
-            if (changed.length)
-                parts.push("Updated feature knowledge: " + changed.map(change => change.name + " (" + change.route + ": " + change.details + ")").join("; "));
-            if (removed.length)
-                parts.push("No longer present in the verified map: " + removed.map(change => change.name + " (" + change.route + ")").join(", ") + ". I will not navigate to these routes.");
-            response = "I compared the latest verified app map with the previous snapshot. " + parts.join(". ") + ".";
+            response = (0, compose_1.composeAppMapChangeResponse)("changed", changes);
         }
         return { intent: "app-map-adaptation", confidence: .96, response, action: { type: "none" }, normalized, alternatives: [], needsClarification: false, entities, context: { ...context, history: [...(context.history ?? []), normalized].slice(-10), entities } };
     }
     if (asksAboutBalance(input)) {
-        const response = "I’ll open Details to check your current USDT balance.";
+        const response = (0, compose_1.composeBalanceNavigationResponse)("details");
         return { intent: "balance", confidence: .98, response, action: { type: "navigate", target: "details" }, normalized, alternatives: [], needsClarification: false, entities, context: { ...context, lastIntent: "balance", lastTarget: "details", history: [...(context.history ?? []), normalized].slice(-10), responseHistory: rememberResponse(context, response), entities } };
     }
     const detectedGoal = detectGoal(input);
@@ -262,7 +251,7 @@ function think(input, context = {}) {
         if (prior) {
             const related = crybotsSource_1.verifiedFacts.find(entry => entry.topic === prior.topic && entry.id !== prior.id);
             const selected = related ?? prior;
-            const response = related ? "A little more on " + prior.topic.replace(/-/g, " ") + ": " + related.answer : "Here is the context I was referring to: " + prior.answer;
+            const response = (0, compose_1.composeVerifiedFactFollowUp)(prior.topic, (related ?? prior).answer, Boolean(related));
             return { intent: `verified:${selected.id}`, confidence: .88, response, action: { type: "none" }, normalized, alternatives: [], needsClarification: false, entities, context: { ...context, history: [...(context.history ?? []), normalized].slice(-10), entities, lastKnowledgeId: selected.id, lastKnowledgeTopic: selected.topic } };
         }
     }
@@ -277,13 +266,11 @@ function think(input, context = {}) {
         if (matches.length === 1) {
             const selected = matches[0].control;
             const sensitive = /\b(withdraw|transfer|deposit|send|delete|remove|disable|enable|revoke|reset|password|security code|confirm|close account|submit|purchase|buy|sell|rent|activate|deactivate|create|generate|add|edit|update|save|approve)\b/i.test(selected.label);
-            const response = sensitive
-                ? "I found the " + selected.label + " control, but I won't trigger a financial, destructive, security-sensitive, or state-changing action by voice without a dedicated confirmation flow. Please review and use the control directly."
-                : "I found the visible " + selected.label + " control on this page.";
+            const response = (0, compose_1.composeRuntimeControlResponse)(selected.label, sensitive ? "sensitive" : "matched");
             return { intent: sensitive ? "runtime-control-needs-confirmation" : "runtime-control-click", confidence: .94, response, action: sensitive ? { type: "none" } : { type: "click", target: selected.id }, normalized, alternatives: [], needsClarification: false, entities, context: { ...context, history: [...(context.history ?? []), normalized].slice(-10), entities } };
         }
         if (matches.length > 1) {
-            return { intent: "runtime-control-ambiguous", confidence: .5, response: "I found more than one matching visible control. Please say the full button label so I don't activate the wrong one.", action: { type: "none" }, normalized, alternatives: [], needsClarification: true, entities, context: { ...context, history: [...(context.history ?? []), normalized].slice(-10), entities } };
+            return { intent: "runtime-control-ambiguous", confidence: .5, response: (0, compose_1.composeRuntimeControlResponse)(requested, "ambiguous"), action: { type: "none" }, normalized, alternatives: [], needsClarification: true, entities, context: { ...context, history: [...(context.history ?? []), normalized].slice(-10), entities } };
         }
     }
     if (asksAboutCurrentPage(input)) {
@@ -294,7 +281,7 @@ function think(input, context = {}) {
     const discoveredHit = wantsFeatureNavigation ? matchDiscoveredFeature(input, context.discoveredFeatures ?? []) : undefined;
     if (discoveredHit) {
         const feature = discoveredHit.feature;
-        const response = feature.description.trim() || "I found this feature in the latest verified app map.";
+        const response = feature.description.trim() || (0, compose_1.composeIntentResponse)("navigation", { type: "navigate", target: feature.route }, input, context);
         return { intent: "discovered:" + feature.id, confidence: discoveredHit.score, response, action: { type: "navigate", target: feature.route }, normalized, alternatives: [], needsClarification: false, entities, context: { ...context, history: [...(context.history ?? []), normalized].slice(-10), entities, lastTarget: feature.route, discoveryVersion: context.discoveryVersion, discoveryUpdatedAt: context.discoveryUpdatedAt } };
     }
     const runtimeFacts = (context.runtimeFacts ?? []).filter(fact => fact && typeof fact.id === "string" && typeof fact.answer === "string" && Array.isArray(fact.questions) && Array.isArray(fact.keywords) && typeof fact.source === "string" && typeof fact.verifiedAt === "string");
