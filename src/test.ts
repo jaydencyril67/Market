@@ -145,6 +145,17 @@ async function main():Promise<void>{
   assert(result.response.includes("BOT-9")||result.response.includes("active or activating investments"),"summary should disclose which available evidence was returned");
  });
 
+ await testAsync("bot and transaction evidence validates numeric fields before comparison",async()=>{
+  const bridge:LiveCryBotsBridge={query:async query=>query.topic==="bots"
+   ?{topic:query.topic,ok:true,data:{investments:[{botId:"BOT-9",status:"active",profit:"not-a-number",investment:-5}]}}
+   :{topic:query.topic,ok:true,data:{transactions:[{botId:"BOT-9",amount:"unknown"}]}}};
+  const result=await thinkLive("which bots are profitable",{},bridge);
+  assert(result.response.includes("non-numeric profit"),"malformed bot profit must be flagged rather than treated as a valid number");
+  assert(result.response.includes("negative investment"),"negative investment amount must be flagged");
+  assert(result.response.includes("non-numeric amount"),"malformed transaction amount must be flagged");
+  assert(result.response.toLowerCase().includes("incomplete")||result.response.toLowerCase().includes("limitation"),"assessment should disclose evidence limits");
+ });
+
  await testAsync("webhook configuration is not misreported as successful delivery",async()=>{
   const bridge:LiveCryBotsBridge={query:async query=>({topic:query.topic,ok:true,data:{webhooks:[{name:"Primary endpoint",enabled:true,url:"https://hooks.example.test/crybots"}]}})};
   const result=await thinkLive("show webhooks",{},bridge);
