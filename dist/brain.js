@@ -304,11 +304,13 @@ function think(input, context = {}) {
     const runtimeFacts = (context.runtimeFacts ?? []).filter(fact => fact && typeof fact.id === "string" && typeof fact.answer === "string" && Array.isArray(fact.questions) && Array.isArray(fact.keywords) && typeof fact.source === "string" && typeof fact.verifiedAt === "string");
     const verifiedHit = (0, matcher_1.findVerifiedKnowledge)(input, runtimeFacts.length ? runtimeFacts : undefined);
     const knowledgeHit = (0, matcher_1.findKnowledge)(input, app_1.knowledge);
-    if (verifiedHit && verifiedHit.score >= .52) {
+    // Operational bot/funds commands must reach the validated intent executor instead of being swallowed by FAQ retrieval.
+    const directOperationalCommand = /^(?:please\s+)?(?:activate|start|turn on|deactivate|stop|turn off|withdraw|transfer|deposit|send|buy|sell|revoke|reset)\b/i.test(input.trim()) && /\b(bot|funds?|usdt|crypto|withdraw|transfer|deposit|buy|sell|activate|deactivate)\b/i.test(input);
+    if (verifiedHit && verifiedHit.score >= .52 && !directOperationalCommand) {
         const nextContext = { ...context, history: [...(context.history ?? []), normalized].slice(-10), pendingIntent: null };
         return { intent: `verified:${verifiedHit.entry.id}`, confidence: verifiedHit.score, response: verifiedHit.entry.answer, action: verifiedHit.entry.route ? { type: "navigate", target: verifiedHit.entry.route } : { type: "none" }, normalized, alternatives: [], needsClarification: false, entities, context: { ...nextContext, entities, lastKnowledgeId: verifiedHit.entry.id, lastKnowledgeTopic: verifiedHit.entry.topic } };
     }
-    if (knowledgeHit && knowledgeHit.score >= .55) {
+    if (knowledgeHit && knowledgeHit.score >= .55 && !directOperationalCommand) {
         const nextContext = { ...context, history: [...(context.history ?? []), normalized].slice(-10), pendingIntent: null };
         return { intent: `knowledge:${knowledgeHit.entry.id}`, confidence: knowledgeHit.score, response: knowledgeHit.entry.answer, action: { type: "none" }, normalized, alternatives: [], needsClarification: false, entities, context: { ...nextContext, entities, references } };
     }

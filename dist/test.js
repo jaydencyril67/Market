@@ -17,6 +17,14 @@ async function testAsync(name, run) {
     console.log("PASS " + name);
 }
 async function main() {
+    test("natural account-deletion wording resolves through verified app knowledge", () => {
+        const requests = ["I want to delete my account", "How can I permanently close my account?", "please remove my account"];
+        for (const request of requests) {
+            const result = (0, brain_1.think)(request);
+            assert(result.action.type === "navigate" && result.action.target === "/danger", "account-deletion intent should discover the verified Danger workflow for: " + request + "; got " + JSON.stringify(result.action));
+            assert(result.intent?.startsWith("verified:"), "account deletion should be grounded in a verified source fact rather than a guessed generic intent");
+        }
+    });
     test("normalization handles casual language and common typos", () => {
         assert((0, brain_1.normalize)("Wanna check my balnce pls") === "want to check my balance please", "normalization should expand slang and correct supported typos");
         assert((0, brain_1.normalize)("  ") === "", "blank input should normalize to an empty string");
@@ -88,8 +96,8 @@ async function main() {
         const cases = [
             { input: "open my bots", type: "navigate", target: "/bots" },
             { input: "open my portfolio", type: "navigate", target: "/portfolio" },
-            { input: "show my webhooks", type: "navigate", target: "webhooks" },
-            { input: "show my transaction history", type: "navigate", target: "transactions" }
+            { input: "show my webhooks", type: "navigate", target: "/webhooks" },
+            { input: "show my transaction history", type: "navigate", target: "/transactions" }
         ];
         for (const item of cases) {
             const result = (0, brain_1.think)(item.input);
