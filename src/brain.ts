@@ -1,6 +1,6 @@
 import {intents} from "./intents/core";
 import {responses} from "./responses/core";
-import {composeIntentResponse} from "./responses/compose";
+import {composeIntentResponse,composeGoalResponse} from "./responses/compose";
 import {BrainAction,BrainApiOperation,BrainContext,BrainResult,Intent} from "./types";
 import {synonyms} from "./language/synonyms";
 import {knowledge} from "./knowledge/app";
