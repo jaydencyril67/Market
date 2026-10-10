@@ -215,6 +215,23 @@ function think(input, context = {}) {
     const normalized = (0, exports.normalize)(input);
     const entities = (0, entities_1.extractEntities)(input, context.entities);
     const references = (0, references_1.resolveReferences)(input, context, entities);
+    // Resolve elliptical commands only when the prior context gives one safe, concrete target.
+    if (/^(do it again|do that again|repeat that|repeat it)$/.test(normalized)) {
+        const previousFact = [...(context.runtimeFacts ?? []), ...crybotsSource_1.verifiedFacts].find(entry => entry.id === context.lastKnowledgeId);
+        const previousTarget = context.lastTarget ?? previousFact?.route;
+        if (previousTarget && /^\/[a-z0-9/_-]+$/i.test(previousTarget)) {
+            const target = previousTarget;
+            const label = target.replace(/^\//, "").replace(/[-_/]+/g, " ").trim();
+            const response = "I can repeat the last known navigation request by opening " + label + ".";
+            return { intent: "context-repeat-navigation", confidence: .93, response, action: { type: "navigate", target }, normalized, alternatives: [], needsClarification: false, entities, context: { ...context, lastIntent: "navigation", history: [...(context.history ?? []), normalized].slice(-10), responseHistory: rememberResponse(context, response), entities } };
+        }
+        const response = "I can repeat a request when I can identify the previous action, but I don't have a specific previous destination in this conversation. What should I repeat?";
+        return { intent: null, confidence: .25, response, action: { type: "none" }, normalized, alternatives: [], needsClarification: true, entities, context: { ...context, history: [...(context.history ?? []), normalized].slice(-10), entities } };
+    }
+    if (/^(that one|the other one|what about the other one|open that one|choose that one)$/.test(normalized)) {
+        const response = "I can't safely identify which item you mean from the context I have. Tell me the item name or ID, or give me the options again, and I'll choose the right one.";
+        return { intent: null, confidence: .2, response, action: { type: "none" }, normalized, alternatives: [], needsClarification: true, entities, context: { ...context, history: [...(context.history ?? []), normalized].slice(-10), entities } };
+    }
     const asksAboutAppMapChanges = /\b(what changed in the app|what changed in crybots|what changed in crybots app|any new pages|new pages or controls|new controls|did the app change|did crybots change|app map updates|updated app map|how has the app changed|what did you discover|what have you discovered|adapt to app changes)\b/.test(normalized);
     if (asksAboutAppMapChanges) {
         const changes = context.appMapChanges ?? [];

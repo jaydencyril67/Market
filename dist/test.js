@@ -72,6 +72,32 @@ async function main() {
         assert(result.intent === "balance", "balance intent should win for a direct balance request");
         assert(result.action.type === "navigate" && result.action.target === "details", "balance request should open the details route");
     });
+    test("meaningful follow-up repeats a known safe destination but does not invent one", () => {
+        const session = new session_1.BrainSession();
+        session.ask("open my bots");
+        const repeated = session.ask("do it again");
+        assert(repeated.action.type === "navigate" && repeated.action.target === "/bots", "repeat should reuse the concrete previous destination");
+        const empty = new session_1.BrainSession().ask("do it again");
+        assert(empty.needsClarification && empty.action.type === "none", "repeat without a prior target must ask instead of guessing");
+    });
+    test("unresolved demonstratives ask for the missing item instead of guessing", () => {
+        const result = (0, brain_1.think)("what about the other one", { history: ["compare bot A and bot B"] });
+        assert(result.needsClarification && result.action.type === "none", "the other one must not select an item when the candidates are not represented as structured entities");
+    });
+    test("intent-confusion cases preserve materially different actions", () => {
+        const cases = [
+            { input: "open my bots", type: "navigate", target: "/bots" },
+            { input: "open my portfolio", type: "navigate", target: "/portfolio" },
+            { input: "show my webhooks", type: "navigate", target: "webhooks" },
+            { input: "show my transaction history", type: "navigate", target: "transactions" }
+        ];
+        for (const item of cases) {
+            const result = (0, brain_1.think)(item.input);
+            assert(result.action.type === "navigate" && result.action.target === item.target, "meaning mismatch for " + JSON.stringify(item.input) + ": got " + JSON.stringify(result.action));
+        }
+        const unsafe = (0, brain_1.think)("activate bot BOT-123");
+        assert(unsafe.action.type === "none" && unsafe.needsClarification, "a sensitive bot command without its required details must not be guessed into execution");
+    });
     test("conversation session retains context and can reset", () => {
         const session = new session_1.BrainSession();
         session.ask("open my bots");
@@ -103,6 +129,16 @@ async function main() {
         assert(topics.includes("bots") && topics.includes("transactions"), "performance assessment should request bot and transaction evidence");
         assert(result.response.toLowerCase().includes("do not establish profitability"), "summary must state that status/counts alone do not prove profitability");
         assert(result.response.includes("BOT-9") || result.response.includes("active or activating investments"), "summary should disclose which available evidence was returned");
+    });
+    await testAsync("bot and transaction evidence validates numeric fields before comparison", async () => {
+        const bridge = { query: async (query) => query.topic === "bots"
+                ? { topic: query.topic, ok: true, data: { investments: [{ botId: "BOT-9", status: "active", profit: "not-a-number", investment: -5 }] } }
+                : { topic: query.topic, ok: true, data: { transactions: [{ botId: "BOT-9", amount: "unknown" }] } } };
+        const result = await (0, think_1.thinkLive)("which bots are profitable", {}, bridge);
+        assert(result.response.includes("non-numeric profit"), "malformed bot profit must be flagged rather than treated as a valid number");
+        assert(result.response.includes("negative investment"), "negative investment amount must be flagged");
+        assert(result.response.includes("non-numeric amount"), "malformed transaction amount must be flagged");
+        assert(result.response.toLowerCase().includes("incomplete") || result.response.toLowerCase().includes("limitation"), "assessment should disclose evidence limits");
     });
     await testAsync("webhook configuration is not misreported as successful delivery", async () => {
         const bridge = { query: async (query) => ({ topic: query.topic, ok: true, data: { webhooks: [{ name: "Primary endpoint", enabled: true, url: "https://hooks.example.test/crybots" }] } }) };
