@@ -31,6 +31,9 @@ jobs:
       - name: Build Brain
         run: npm run build
 
+      - name: Run Brain behavior tests
+        run: npm test
+
       - name: Commit dist
         run: |
           git config user.name "github-actions[bot]"
