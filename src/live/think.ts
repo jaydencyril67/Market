@@ -65,9 +65,10 @@ export async function thinkLive(input:string,context:BrainContext={},bridge:Live
           Array.isArray(fact.keywords)&&fact.keywords.every((keyword:unknown)=>typeof keyword==="string")&&
           typeof fact.source==="string"&&typeof fact.verifiedAt==="string"
         ):undefined;
-        const hasPriorMap=Array.isArray(context.discoveredFeatures)&&context.discoveredFeatures.length>0;
-        const appMapChanges=hasPriorMap?compareAppMap(context.discoveredFeatures??[],discoveredFeatures):[];
-        refreshedContext={...context,discoveredFeatures,runtimeFacts,discoveryVersion:snapshot.version,discoveryUpdatedAt:snapshot.updatedAt,appMapCompared:hasPriorMap,appMapChanges};
+        const previousMap=context.appMapSnapshot??[];
+        const hasPriorMap=previousMap.length>0;
+        const appMapChanges=hasPriorMap?compareAppMap(previousMap,discoveredFeatures):[];
+        refreshedContext={...context,discoveredFeatures,runtimeFacts,discoveryVersion:snapshot.version,discoveryUpdatedAt:snapshot.updatedAt,appMapCompared:hasPriorMap,appMapSnapshot:discoveredFeatures,appMapChanges};
       }
     }
   }catch{
