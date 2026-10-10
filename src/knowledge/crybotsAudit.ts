@@ -60,6 +60,7 @@ export const verifiedRoutes:CryBotsRouteFact[]=[
 {route:"/trade",key:"trade",component:"TradePage",access:"protected",area:"trading",sourcePath:"src/index.tsx"},
 {route:"/chart",key:"chart",component:"Chart",access:"protected",area:"trading",sourcePath:"src/index.tsx"},
 {route:"/trade/history",key:"trade-history",component:"TradeHistory",access:"protected",area:"trading",sourcePath:"src/index.tsx"},
+{route:"/worldscope",key:"worldscope",component:"WorldScopePage",access:"protected",area:"market-intelligence",sourcePath:"src/components/WorldScopePage.tsx"},
 {route:"/market",key:"market",component:"Market",access:"protected",area:"bots",sourcePath:"src/index.tsx"},
 {route:"/creation",key:"creation",component:"Creation",access:"protected",area:"bots",sourcePath:"src/index.tsx"},
 {route:"/rentals",key:"rentals",component:"RentalsPage",access:"protected",area:"bots",sourcePath:"src/index.tsx"},
@@ -111,6 +112,7 @@ export const verifiedRoutes:CryBotsRouteFact[]=[
 
 export const verifiedRelationships:CryBotsRelationship[]=[
 {from:"/market",to:["/commerce","/rentals","/creation","/bots"],relationship:"parent marketplace"},
+{from:"/worldscope",to:[],relationship:"market-intelligence subscriptions and rankings"},
 {from:"/asset",to:["/deposit","/withdrawals","/transfer","/manage"],relationship:"asset-management hub"},
 {from:"/profile",to:["/details","/statistics","/security","/danger"],relationship:"account hub"},
 {from:"/help",to:["/faq","/chat","/tickets"],relationship:"support hub"},
@@ -125,6 +127,7 @@ export const dynamicDataRules:DynamicDataRule[]=[
 {topic:"transactions",examples:["deposits","withdrawals","transfers","transaction history"],rule:"live-from-crybots",reason:"The UI requests current transaction records from the backend."},
 {topic:"bots",examples:["bot status","efficiency","investment","rental expiry","positions","performance"],rule:"live-from-crybots",reason:"Bot state and performance are user/account data and must not be guessed."},
 {topic:"market",examples:["prices","movers","symbol results","liquidity"],rule:"live-from-crybots",reason:"The frontend requests current market/creation data."},
+{topic:"market-intelligence",examples:["WorldScope rankings","subscription status","billing cycle","market summaries"],rule:"live-from-crybots",reason:"Rankings and subscription status may change and must not be inferred from static knowledge."},
 {topic:"webhooks",examples:["enabled state","delivery history","attempts","response status","last error"],rule:"live-from-crybots",reason:"Webhook state and delivery results are backend state."},
 {topic:"notifications",examples:["unread state","notification records","alert preferences"],rule:"live-from-crybots",reason:"These values are stored and retrieved from the account."},
 {topic:"static-app-knowledge",examples:["route names","feature purpose","navigation relationships","supported webhook event labels"],rule:"verified-static",reason:"These are documented directly by the verified frontend source snapshot."}
