@@ -52,10 +52,10 @@ const goalGuides:GoalGuide[]=[
 ];
 const detectGoal=(input:string):GoalGuide|undefined=>{
  const text=normalize(input);
- if(/\\b(bot|bots|my bot|my bots|trading bot)\\b/.test(text)&&/\\b(performance|performing|profitable|profitability|results|doing|losing|winning|best|worst)\\b/.test(text))return goalGuides[0];
- if(/\\b(account|money|funds|balance|assets|portfolio)\\b/.test(text)&&/\\b(overview|understand|review|check|track|where|how much)\\b/.test(text))return goalGuides[1];
- if(/\\b(webhook|webhooks)\\b/.test(text)&&/\\b(fail|failed|broken|troubleshoot|problem|issue|not working|why)\\b/.test(text))return goalGuides[2];
- if(/\\b(secure|security|protect|protection)\\b/.test(text)&&/\\b(account|access|keys|devices|login|integrations)\\b/.test(text))return goalGuides[3];
+ if(/\b(bot|bots|my bot|my bots|trading bot)\b/.test(text)&&/\b(performance|performing|profitable|profitability|results|doing|losing|winning|best|worst)\b/.test(text))return goalGuides[0];
+ if(/\b(account|money|funds|balance|assets|portfolio)\b/.test(text)&&/\b(overview|understand|review|check|track|where|how much)\b/.test(text))return goalGuides[1];
+ if(/\b(webhook|webhooks)\b/.test(text)&&/\b(fail|failed|broken|troubleshoot|problem|issue|not working|why)\b/.test(text))return goalGuides[2];
+ if(/\b(secure|security|protect|protection)\b/.test(text)&&/\b(account|access|keys|devices|login|integrations)\b/.test(text))return goalGuides[3];
  return undefined;
 };
 const isGoalFollowUp=(input:string)=>/^(what should i check|what should i look at|what next|what do i check next|which one is best|which is best|which one is worst|why is it losing|how do i know|how can i tell|what does that mean|how do i improve|what should i do|and what about the results)$/.test(normalize(input));
