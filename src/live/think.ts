@@ -45,7 +45,23 @@ function reasonOverLiveData(input:string,live:LiveDataResult):string|undefined{
 }
 
 export async function thinkLive(input:string,context:BrainContext={},bridge:LiveCryBotsBridge,options:ThinkLiveOptions={}):Promise<BrainResult>{
-  const result=think(input,context);
+  let refreshedContext:BrainContext=context;
+  try{
+    if(bridge.discover){
+      const snapshot=await bridge.discover();
+      if(snapshot&&typeof snapshot.version==="string"&&typeof snapshot.updatedAt==="string"&&Array.isArray(snapshot.features)){
+        const discoveredFeatures=snapshot.features.filter(feature=>
+          feature&&feature.verified===true&&typeof feature.id==="string"&&typeof feature.name==="string"&&
+          typeof feature.route==="string"&&/^\/[a-z0-9/_-]+$/i.test(feature.route)&&
+          typeof feature.description==="string"&&Array.isArray(feature.keywords)&&feature.keywords.every((keyword:unknown)=>typeof keyword==="string")
+        );
+        refreshedContext={...context,discoveredFeatures,discoveryVersion:snapshot.version,discoveryUpdatedAt:snapshot.updatedAt};
+      }
+    }
+  }catch{
+    // Discovery is opportunistic; a temporary catalogue outage must not block normal Brain responses.
+  }
+  const result=think(input,refreshedContext);
   const goal=result.context.activeGoal;
   const relatedTopics:Record<string,LiveDataResult["topic"][]>={
     "bot-performance":["bots","transactions"],
