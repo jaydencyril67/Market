@@ -120,7 +120,7 @@ export function think(input:string,context:BrainContext={}):BrainResult{
   return{intent:"goal:"+detectedGoal.id,confidence:.86,response:detectedGoal.response,action:{type:"navigate",target:detectedGoal.target},normalized,alternatives:[],needsClarification:false,entities,context:{...context,history:[...(context.history??[]),normalized].slice(-10),entities,activeGoal:detectedGoal.id,goalTopics:detectedGoal.topics,lastTarget:detectedGoal.target}};
  }
  if(context.lastKnowledgeId&&isContextualFollowUp(input)){
-  const prior=verifiedFacts.find(entry=>entry.id===context.lastKnowledgeId);
+  const prior=(context.runtimeFacts?.length?context.runtimeFacts:verifiedFacts).find(entry=>entry.id===context.lastKnowledgeId);
   if(prior){
    const related=verifiedFacts.find(entry=>entry.topic===prior.topic&&entry.id!==prior.id);
    const selected=related??prior;
