@@ -105,6 +105,17 @@ function summarizeGoal(goal, records) {
         ["delivery verification", deliveries ? "inspect individual returned delivery results" : "configuration alone does not establish delivery success"]
     ]);
 }
+function formatFetchedAt(value, timeZone = "UTC", locale = "en-GB") {
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime()))
+        return "";
+    try {
+        return new Intl.DateTimeFormat(locale, { timeZone, day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false, timeZoneName: "short" }).format(date);
+    }
+    catch {
+        return new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false, timeZoneName: "short" }).format(date);
+    }
+}
 function reasonOverLiveData(input, live, timeZone = "UTC") {
     const query = input.toLowerCase(), data = live.data;
     const facts = (values) => values.filter(([, v]) => v !== undefined && v !== null && String(v).trim() !== "").map(([k, v]) => k + ": " + String(v));
@@ -245,7 +256,9 @@ async function thinkLive(input, context = {}, bridge, options = {}) {
     const live = await bridge.query(liveQuery);
     if (!live.ok)
         return { ...result, response: (0, compose_1.composeLiveDataStatus)(live.topic, "unavailable", live.message), action: result.action, liveData: undefined };
-    const summary = reasonOverLiveData(input, live, refreshedContext.runtimeClock?.timeZone ?? "UTC") ?? (0, compose_1.composeLiveDataStatus)(live.topic, "unrecognized");
-    const freshness = live.fetchedAt ? " Data fetched at " + live.fetchedAt + "." : "";
+    const runtimeClock = refreshedContext.runtimeClock;
+    const summary = reasonOverLiveData(input, live, runtimeClock?.timeZone ?? "UTC") ?? (0, compose_1.composeLiveDataStatus)(live.topic, "unrecognized");
+    const formattedFetchTime = live.fetchedAt ? formatFetchedAt(live.fetchedAt, runtimeClock?.timeZone ?? "UTC", runtimeClock?.locale ?? "en-GB") : "";
+    const freshness = formattedFetchTime ? " Data retrieved " + formattedFetchTime + "." : "";
     return { ...result, response: summary + freshness, action: result.action, liveData: live.data, context: { ...result.context, lastTarget: result.context.lastTarget } };
 }
