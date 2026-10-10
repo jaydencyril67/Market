@@ -1,6 +1,6 @@
 import {intents} from "./intents/core";
 import {responses} from "./responses/core";
-import {BrainContext,BrainResult,Intent} from "./types";
+import {BrainAction,BrainApiOperation,BrainContext,BrainResult,Intent} from "./types";
 import {synonyms} from "./language/synonyms";
 import {knowledge} from "./knowledge/app";
 import {findKnowledge,findVerifiedKnowledge} from "./knowledge/matcher";
@@ -194,6 +194,32 @@ export function think(input:string,context:BrainContext={}):BrainResult{
  if(ambiguous){const response=chooseResponse(responses.unclear,context.responseHistory??[]);return{intent:null,confidence:best.confidence,response,action:{type:"none"},normalized,alternatives:alternatives.map(x=>x.intent.id),needsClarification:true,entities,context:{...context,pendingIntent:best.intent.id,entities,references,responseHistory:rememberResponse(context,response)}};}
  if(best.intent.id==="scroll"){const scrollTop=/\b(top|beginning)\b/.test(normalized);const scrollBottom=/\b(bottom|end)\b/.test(normalized);best={...best,action:{type:"scroll_page",direction:/\bup\b/.test(normalized)?"up":"down",position:scrollTop?"top":scrollBottom?"bottom":undefined}};}
  if(references.length){const ref=references[0];if(ref.type==="bot"&&best.intent.id==="bot_status"){const candidate=intents.find(x=>x.id==="bot_status")!;best={intent:candidate,confidence:Math.max(best.confidence,.88),action:best.action??candidate.action};}}
- const response=chooseResponse(responsePool(best.intent.id),context.responseHistory??[],input);const nextContext={lastIntent:best.intent.id,lastTarget:best.action?.type==="navigate"?best.action.target:context.lastTarget,lastKnowledgeId:context.lastKnowledgeId,lastKnowledgeTopic:context.lastKnowledgeTopic,activeGoal:context.activeGoal,goalTopics:context.goalTopics,history:[...(context.history??[]),normalized].slice(-10),responseHistory:rememberResponse(context,response),pendingIntent:null};
- return{intent:best.intent.id,confidence:best.confidence,response,action:best.action??{type:"none"},normalized,alternatives:alternatives.map(x=>x.intent.id),needsClarification:false,entities,context:nextContext};
+ let action:BrainAction=best.action??{type:"none"};
+ let apiClarification:string|undefined;
+ if(action.type==="api"){
+  const operation:BrainApiOperation=action.operation;
+  const targetMatch=input.match(/\\bbot(?:\\s+id)?\\s*(?:#\\s*|id\\s*)?([a-z0-9][a-z0-9._-]{2,})\\b/i);
+  const targetCandidate=targetMatch?.[1]?.trim();
+  const reservedTargets=new Set(["with","using","amount","for","usdt","usd","please","my","your","this","that","bot","bots","activate","deactivate","withdraw","funds","from","now"]);
+  const botId=targetCandidate&&!reservedTargets.has(targetCandidate.toLowerCase())?targetCandidate:undefined;
+  const amountMatch=input.match(/\\b(?:with|amount(?:\\s+of)?|for)\\s+(?:\\$|usdt\\s+|usd\\s+)?([0-9]+(?:\\.[0-9]+)?)(?:\\s*(?:usdt|usd))?\\b/i);
+  const amount=amountMatch?.[1]?Number(amountMatch[1]):NaN;
+  if(!botId){
+   apiClarification="I can prepare that through CryBots’ bot API, but I need the exact bot ID. Please repeat the request with the bot ID, for example: “activate bot BOT123 with 50 USDT.” No operation has been sent.";
+  }else if((operation==="bot_activate"||operation==="bot_withdraw")&&(!Number.isFinite(amount)||amount<=0)){
+   apiClarification="I found the bot request, but I need a valid USDT amount. Please repeat it with the bot ID and amount, for example: “"+(operation==="bot_activate"?"activate":"withdraw from")+" bot "+botId+" with 50 USDT.” No operation has been sent.";
+  }else{
+   action={type:"api",operation,target:botId,parameters:operation==="bot_deactivate"?{}:{amount:String(amount)},requiresConfirmation:true};
+  }
+ }
+ if(apiClarification){
+  const response=apiClarification;
+  const nextContext={...context,lastIntent:best.intent.id,history:[...(context.history??[]),normalized].slice(-10),responseHistory:rememberResponse(context,response),pendingIntent:best.intent.id,entities};
+  return{intent:best.intent.id,confidence:best.confidence,response,action:{type:"none"},normalized,alternatives:alternatives.map(x=>x.intent.id),needsClarification:true,entities,context:nextContext};
+ }
+ const response=action.type==="api"
+  ?"I prepared a bot operation for review. Nothing has been changed yet. Check the bot and details in the confirmation panel, then confirm to send the request to CryBots."
+  :chooseResponse(responsePool(best.intent.id),context.responseHistory??[],input);
+ const nextContext={lastIntent:best.intent.id,lastTarget:action.type==="navigate"?action.target:context.lastTarget,lastKnowledgeId:context.lastKnowledgeId,lastKnowledgeTopic:context.lastKnowledgeTopic,activeGoal:context.activeGoal,goalTopics:context.goalTopics,history:[...(context.history??[]),normalized].slice(-10),responseHistory:rememberResponse(context,response),pendingIntent:null};
+ return{intent:best.intent.id,confidence:best.confidence,response,action,normalized,alternatives:alternatives.map(x=>x.intent.id),needsClarification:false,entities,context:nextContext};
 }
