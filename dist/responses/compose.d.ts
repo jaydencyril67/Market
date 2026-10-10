@@ -14,3 +14,5 @@ export declare function composeAppMapChangeResponse(state: "no-baseline" | "unch
 }>): string;
 export declare function composeVerifiedFactFollowUp(topic: string, answer: string, hasRelated: boolean): string;
 export declare function composeBalanceNavigationResponse(target: string): string;
+export declare function composeLiveDataStatus(topic: "account-state" | "transactions" | "bots" | "market" | "webhooks" | "notifications", state: "unavailable" | "unrecognized", detail?: string): string;
+export declare function composeLiveGoalUnavailable(goal: string, topics: string[]): string;
