@@ -1,9 +1,9 @@
-import {BrainContext,BrainResult} from "../types";
+import {BrainContext,BrainDiscoveredFeature,BrainResult} from "../types";
 import {think} from "../brain";
 import {buildLiveQuery,liveTopicForResult} from "./router";
 import {LiveCryBotsBridge,LiveDataResult} from "./types";
 
-export type ThinkLiveOptions={userId?:string};
+export type ThinkLiveOptions={userId?:string;runtimeFeatures?:BrainDiscoveredFeature[]};
 
 const verifiedTopicMap:Record<string,ReturnType<typeof liveTopicForResult>>={
   "verified:portfolio":"account-state","verified:my-bots":"bots","verified:bot-performance":"bots","verified:bot-lifecycle":"bots",
@@ -60,6 +60,14 @@ export async function thinkLive(input:string,context:BrainContext={},bridge:Live
     }
   }catch{
     // Discovery is opportunistic; a temporary catalogue outage must not block normal Brain responses.
+  }
+  if(options.runtimeFeatures?.length){
+    const merged=new Map<string,BrainDiscoveredFeature>();
+    for(const feature of refreshedContext.discoveredFeatures??[])merged.set(feature.route,feature);
+    for(const feature of options.runtimeFeatures){
+      if(feature&&feature.verified===true&&typeof feature.route==="string"&&/^\/[a-z0-9/_-]+$/i.test(feature.route))merged.set(feature.route,feature);
+    }
+    refreshedContext={...refreshedContext,discoveredFeatures:[...merged.values()]};
   }
   const result=think(input,refreshedContext);
   const goal=result.context.activeGoal;
