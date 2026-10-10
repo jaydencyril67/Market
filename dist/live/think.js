@@ -11,18 +11,6 @@ const verifiedTopicMap = {
 function topicFor(result) { return (0, router_1.liveTopicForResult)(result) ?? verifiedTopicMap[result.intent ?? ""]; }
 const asRecord = (value) => value && typeof value === "object" && !Array.isArray(value) ? value : null;
 const formatAmount = (value, currency) => { const n = Number(value); return Number.isFinite(n) ? n.toFixed(2) + (currency ? " " + String(currency) : "") : String(value ?? ""); };
-function recordCount(value) {
-    if (Array.isArray(value))
-        return value.length;
-    const record = asRecord(value);
-    if (!record)
-        return undefined;
-    for (const key of ["investments", "bots", "transactions", "webhooks", "deliveries", "deliveryHistory", "notifications", "records", "items", "history", "logs"]) {
-        if (Array.isArray(record[key]))
-            return record[key].length;
-    }
-    return undefined;
-}
 function explicitBalanceSummary(data) {
     const record = asRecord(data);
     if (!record)
@@ -95,7 +83,7 @@ function reasonOverLiveData(input, live) {
     }
     if (live.topic === "bots") {
         const record = asRecord(data);
-        const investments = Array.isArray(record?.investments) ? record.investments : [];
+        const investments = Array.isArray(record?.investments) ? record.investments : Array.isArray(data) ? data : [];
         const active = investments.filter((item) => item?.active === true || ["activating", "active"].includes(String(item?.lifecycleStatus ?? "").toLowerCase()));
         if (/which|what|show|list/.test(text) && /active|running/.test(text)) {
             if (!active.length)
