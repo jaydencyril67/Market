@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const brain_1 = require("./brain");
 const session_1 = require("./session");
 const runtime_1 = require("./execution/runtime");
+const think_1 = require("./live/think");
 function assert(condition, message) {
     if (!condition)
         throw new Error("Behavior test failed: " + message);
@@ -26,6 +27,7 @@ async function main() {
         assert(typeof result.confidence === "number" && result.confidence >= 0 && result.confidence <= 1, "confidence should be within 0..1");
         assert(result.action !== undefined && typeof result.action.type === "string", "an action shape should be present");
         assert(result.normalized === "open my bots", "normalized input should be retained");
+        assert(result.action.type === "navigate" && result.action.target === "/bots", "request should resolve to the My Bots route; got " + JSON.stringify(result.action));
     });
     test("brain handles different user phrasings without crashing", () => {
         const inputs = [
@@ -47,6 +49,11 @@ async function main() {
             assert(Array.isArray(result.alternatives), "alternatives should be an array for input: " + input);
         }
     });
+    test("a balance request resolves to the balance intent", () => {
+        const result = (0, brain_1.think)("check my balance");
+        assert(result.intent === "balance", "balance intent should win for a direct balance request");
+        assert(result.action.type === "navigate" && result.action.target === "details", "balance request should open the details route");
+    });
     test("conversation session retains context and can reset", () => {
         const session = new session_1.BrainSession();
         session.ask("open my bots");
@@ -62,6 +69,20 @@ async function main() {
         assert(result.context.decision !== undefined, "decision metadata should be attached");
         assert(["single", "sequence", "clarify"].includes(result.context.decision.mode), "decision mode should be valid");
         assert(result.context.decision.steps.length >= 1, "decision should contain at least one step");
+    });
+    await testAsync("live balance reasoning never infers a missing financial value", async () => {
+        const seen = [];
+        const bridge = { query: async (query) => { seen.push(query); return { topic: query.topic, ok: true, data: { accountId: "account-1", unrelatedMetric: 500 }, fetchedAt: "2026-10-10T00:00:00Z" }; } };
+        const result = await (0, think_1.thinkLive)("check my balance", {}, bridge);
+        assert(seen.length === 1 && seen[0].topic === "account-state", "balance request should query account-state data");
+        assert(result.response.toLowerCase().includes("cannot be inferred") || result.response.toLowerCase().includes("won’t guess"), "response should explain that missing balance cannot be inferred");
+        assert(!result.response.includes("500"), "unrelated numeric data must not be presented as a balance");
+    });
+    await testAsync("live bot summaries report returned status without claiming profitability", async () => {
+        const bridge = { query: async (query) => ({ topic: query.topic, ok: true, data: { investments: [{ botId: "BOT-7", status: "active", profit: 99 }] } }) };
+        const result = await (0, think_1.thinkLive)("show my active bots", {}, bridge);
+        assert(result.response.includes("BOT-7"), "active bot response should include the returned bot ID");
+        assert(!/profitable|profit is|earned|guaranteed/i.test(result.response), "status alone must not become a profitability claim");
     });
     await testAsync("sensitive actions are rejected until explicitly confirmed", async () => {
         const command = {
