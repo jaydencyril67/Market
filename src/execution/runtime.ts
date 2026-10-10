@@ -20,7 +20,8 @@ function validateCommand(command:ExecutionCommand):string|undefined{
 
 export async function executeCommand(command:ExecutionCommand,executor:Executor,confirmed=false):Promise<ExecutionResult>{
  if(command.status==="blocked")return{commandId:command.id,status:"failed",message:command.reason??"Command is blocked."};
- const sensitiveAction=command.action.type==="api"||highRiskIntent.test(command.intent)||mediumRiskIntent.test(command.intent);
+ const normalizedIntent=command.intent.replace(/[_-]+/g," ");
+ const sensitiveAction=command.action.type==="api"||highRiskIntent.test(normalizedIntent)||mediumRiskIntent.test(normalizedIntent);
  if((command.requiresConfirmation||sensitiveAction)&&!confirmed)return{commandId:command.id,status:"rejected",message:"Explicit confirmation is required before this command can execute."};
  const invalid=validateCommand(command);
  if(invalid)return{commandId:command.id,status:"failed",message:invalid};
