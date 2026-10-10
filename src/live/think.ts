@@ -92,7 +92,7 @@ function summarizeGoal(goal:string,records:Record<string,unknown>):string{
  ]);
 }
 
-function reasonOverLiveData(input:string,live:LiveDataResult):string|undefined{
+function reasonOverLiveData(input:string,live:LiveDataResult,timeZone="UTC"):string|undefined{
  const query=input.toLowerCase(),data=live.data;
  const facts=(values:Array<[string,unknown]>)=>values.filter(([,v])=>v!==undefined&&v!==null&&String(v).trim()!=="").map(([k,v])=>k+": "+String(v));
  const report=(subject:string,values:Array<[string,unknown]>)=>{const entries=facts(values);return entries.length?subject+" — "+entries.join("; ")+".":undefined;};
@@ -105,7 +105,7 @@ function reasonOverLiveData(input:string,live:LiveDataResult):string|undefined{
     ["type",item.title??item.category??item.direction],
     ["amount",item.amount!==undefined?formatAmount(item.amount,item.currency??"USDT"):undefined],
     ["status",item.status],
-    ["recorded",date&&Number.isFinite(date.getTime())?date.toLocaleString():undefined]
+    ["recorded",date&&Number.isFinite(date.getTime())?new Intl.DateTimeFormat("en-GB",{timeZone,year:"numeric",month:"short",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(date):undefined]
    ])??live.message;
   }
   return live.message;
@@ -217,7 +217,7 @@ export async function thinkLive(input:string,context:BrainContext={},bridge:Live
   const query=buildLiveQuery(result,input,result.entities,options.userId); const liveQuery=query??{topic,input,entities:result.entities as Record<string,string>,userId:options.userId}; liveQuery.topic=topic;
   const live=await bridge.query(liveQuery);
   if(!live.ok)return {...result,response:composeLiveDataStatus(live.topic,"unavailable",live.message),action:result.action,liveData:undefined};
-  const summary=reasonOverLiveData(input,live)??composeLiveDataStatus(live.topic,"unrecognized");
+  const summary=reasonOverLiveData(input,live,refreshedContext.runtimeClock?.timeZone??"UTC")??composeLiveDataStatus(live.topic,"unrecognized");
   const freshness=live.fetchedAt?" Data fetched at "+live.fetchedAt+".":"";
   return {...result,response:summary+freshness,action:result.action,liveData:live.data,context:{...result.context,lastTarget:result.context.lastTarget}};
 }
