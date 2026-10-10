@@ -132,7 +132,8 @@ export function think(input:string,context:BrainContext={}):BrainResult{
   const response=answerFromRuntimePage(context);
   return{intent:"runtime-page-overview",confidence:.9,response,action:{type:"none"},normalized,alternatives:[],needsClarification:false,entities,context:{...context,history:[...(context.history??[]),normalized].slice(-10),entities}};
  }
- const discoveredHit=matchDiscoveredFeature(input,context.discoveredFeatures??[]);
+ const wantsFeatureNavigation=/\b(open|go to|take me to|navigate to|show me|bring me to|where is|where can i find|visit)\b/.test(normalized);
+ const discoveredHit=wantsFeatureNavigation?matchDiscoveredFeature(input,context.discoveredFeatures??[]):undefined;
  if(discoveredHit){
   const feature=discoveredHit.feature;
   const response=feature.description.trim()||"I found this feature in the latest verified app map.";
