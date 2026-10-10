@@ -10,7 +10,7 @@ export function splitRequests(input:string):string[]{
    else current+=" and "+pieces[i];
   }
   out.push(current.trim());return out.filter(Boolean);
- }).filter(Boolean);
+ }).map(part=>part.replace(/^then\s+/i,"").trim()).filter(Boolean);
 }
 export function decide(steps:BrainStep[],intents:Intent[]):ReasoningDecision{
  if(!steps.length)return{mode:"clarify",steps:[],reason:"No actionable request was detected."};
