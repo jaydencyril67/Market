@@ -128,6 +128,12 @@ const detectGoal = (input) => {
 };
 const isGoalFollowUp = (input) => /^(what should i check|what should i look at|what next|what do i check next|which one is best|which is best|which one is worst|why is it losing|how do i know|how can i tell|what does that mean|how do i improve|what should i do|and what about the results|what about my data|what do the records say|what should i compare|can you check that|check it for me|then what|what about now)$/.test((0, exports.normalize)(input));
 const asksAboutCurrentPage = (input) => /\b(what can i do here|what can i do on this page|what can you do here|what buttons are available|which buttons are available|what controls are available|what controls do i have|what is on this page|what can you see here|show me the controls|what actions are available)\b/.test((0, exports.normalize)(input));
+const asksAboutBalance = (input) => {
+    const text = (0, exports.normalize)(input);
+    if (/\b(withdraw|cash out|transfer|send|deposit|buy|sell|activate|deactivate)\b/.test(text))
+        return false;
+    return /\b(usdt balance|balance of usdt|balance in usdt|account balance|available balance|my balance|show my balance|check my balance|check balance|show my usdt balance|check my usdt balance|what is my balance|what s my balance|what is my usdt balance|what s my usdt balance|how much usdt do i have|how much do i have|how much balance do i have)\b/.test(text);
+};
 const answerFromRuntimePage = (context) => {
     const snapshot = context.runtimePageSnapshot;
     const page = (snapshot?.title || context.runtimePage || "current page").replace(/^\//, "").replace(/[-_/]+/g, " ").trim() || "current page";
@@ -199,6 +205,10 @@ function think(input, context = {}) {
     const requests = (0, decision_1.splitRequests)(input);
     if (requests.length > 1) {
         const steps = requests.map(part => { const rankedPart = core_1.intents.map(intent => ({ intent, confidence: score(part, intent) })).sort((a, b) => b.confidence - a.confidence); const bestPart = rankedPart[0]; const entitiesPart = (0, entities_1.extractEntities)(part, context.entities); const refsPart = (0, references_1.resolveReferences)(part, context, entitiesPart); return { intent: bestPart?.intent.id ?? "", confidence: bestPart?.confidence ?? 0, input: part, action: bestPart?.intent.action ?? { type: "none" }, references: refsPart, alternatives: rankedPart.slice(1, 3).map(x => ({ intent: x.intent.id, confidence: x.confidence })) }; });
+        if (steps.some(step => step.action.type === "api")) {
+            const response = "I can prepare one bot API operation at a time so I can validate the exact bot and amount and request approval for that specific action. Please send the bot operation by itself. No action has been sent.";
+            return { intent: null, confidence: Math.min(...steps.map(step => step.confidence)), response, action: { type: "none" }, normalized: (0, exports.normalize)(input), alternatives: steps.map(step => step.intent).filter(Boolean), needsClarification: true, entities: context.entities ?? {}, context: { ...context, history: [...(context.history ?? []), (0, exports.normalize)(input)].slice(-10) } };
+        }
         const decision = (0, decision_1.decide)(steps, core_1.intents);
         const actionPlan = (0, planner_1.buildActionPlan)(steps, steps.flatMap(s => s.references));
         const execution = (0, executor_1.compileExecution)(actionPlan, context.entities ?? {});
@@ -215,6 +225,35 @@ function think(input, context = {}) {
     const normalized = (0, exports.normalize)(input);
     const entities = (0, entities_1.extractEntities)(input, context.entities);
     const references = (0, references_1.resolveReferences)(input, context, entities);
+    const asksAboutAppMapChanges = /\b(what changed in the app|what changed in crybots|what changed in crybots app|any new pages|new pages or controls|new controls|did the app change|did crybots change|app map updates|updated app map|how has the app changed|what did you discover|what have you discovered|adapt to app changes)\b/.test(normalized);
+    if (asksAboutAppMapChanges) {
+        const changes = context.appMapChanges ?? [];
+        let response;
+        if (!context.appMapCompared) {
+            response = "I loaded the latest verified CryBots app map, but I don't have a previous map snapshot in this conversation to compare against. I won't guess which pages or controls are new.";
+        }
+        else if (!changes.length) {
+            response = "I compared the latest verified CryBots app map with the previous snapshot available to Brain. No route, feature name, description, or keyword changes were detected.";
+        }
+        else {
+            const added = changes.filter(change => change.kind === "added");
+            const changed = changes.filter(change => change.kind === "changed");
+            const removed = changes.filter(change => change.kind === "removed");
+            const parts = [];
+            if (added.length)
+                parts.push("New verified features: " + added.map(change => change.name + " (" + change.route + ")").join(", "));
+            if (changed.length)
+                parts.push("Updated feature knowledge: " + changed.map(change => change.name + " (" + change.route + ": " + change.details + ")").join("; "));
+            if (removed.length)
+                parts.push("No longer present in the verified map: " + removed.map(change => change.name + " (" + change.route + ")").join(", ") + ". I will not navigate to these routes.");
+            response = "I compared the latest verified app map with the previous snapshot. " + parts.join(". ") + ".";
+        }
+        return { intent: "app-map-adaptation", confidence: .96, response, action: { type: "none" }, normalized, alternatives: [], needsClarification: false, entities, context: { ...context, history: [...(context.history ?? []), normalized].slice(-10), entities } };
+    }
+    if (asksAboutBalance(input)) {
+        const response = "I’ll open Details to check your current USDT balance.";
+        return { intent: "balance", confidence: .98, response, action: { type: "navigate", target: "details" }, normalized, alternatives: [], needsClarification: false, entities, context: { ...context, lastIntent: "balance", lastTarget: "details", history: [...(context.history ?? []), normalized].slice(-10), responseHistory: rememberResponse(context, response), entities } };
+    }
     const detectedGoal = detectGoal(input);
     if (context.activeGoal && isGoalFollowUp(input)) {
         const guide = goalGuides.find(item => item.id === context.activeGoal);
@@ -314,7 +353,38 @@ function think(input, context = {}) {
             best = { intent: candidate, confidence: Math.max(best.confidence, .88), action: best.action ?? candidate.action };
         }
     }
-    const response = chooseResponse(responsePool(best.intent.id), context.responseHistory ?? [], input);
-    const nextContext = { lastIntent: best.intent.id, lastTarget: best.action?.type === "navigate" ? best.action.target : context.lastTarget, lastKnowledgeId: context.lastKnowledgeId, lastKnowledgeTopic: context.lastKnowledgeTopic, activeGoal: context.activeGoal, goalTopics: context.goalTopics, history: [...(context.history ?? []), normalized].slice(-10), responseHistory: rememberResponse(context, response), pendingIntent: null };
-    return { intent: best.intent.id, confidence: best.confidence, response, action: best.action ?? { type: "none" }, normalized, alternatives: alternatives.map(x => x.intent.id), needsClarification: false, entities, context: nextContext };
+    let action = best.action ?? { type: "none" };
+    let apiClarification;
+    if (action.type === "api") {
+        const operation = action.operation;
+        const targetMatch = input.match(/\bbot(?:\s+id)?\s*(?:#\s*|id\s*)?([a-z0-9][a-z0-9._-]{2,})\b/i);
+        const targetCandidate = targetMatch?.[1]?.trim();
+        const reservedTargets = new Set(["with", "using", "amount", "for", "usdt", "usd", "please", "my", "your", "this", "that", "bot", "bots", "activate", "deactivate", "withdraw", "funds", "from", "now"]);
+        const botId = targetCandidate && !reservedTargets.has(targetCandidate.toLowerCase()) ? targetCandidate : undefined;
+        const amountMatch = input.match(/\b(?:with|amount(?:\s+of)?|for)\s+(?:\$|usdt\s+|usd\s+)?([0-9]+(?:\.[0-9]+)?)(?:\s*(?:usdt|usd))?\b/i);
+        const amount = amountMatch?.[1] ? Number(amountMatch[1]) : NaN;
+        const directCommand = /^(?:please\s+)?(?:activate|start|turn on|deactivate|stop|turn off|withdraw)\b/i.test(input.trim());
+        if (!directCommand) {
+            apiClarification = "I can prepare this through CryBots’ API, but I need to distinguish a direct command from a how-to question. To submit a request for review, phrase it directly, for example: “activate bot BOT123 with 50 USDT.” No operation has been sent.";
+        }
+        else if (!botId) {
+            apiClarification = "I can prepare that through CryBots’ bot API, but I need the exact bot ID. Please repeat the request with the bot ID, for example: “activate bot BOT123 with 50 USDT.” No operation has been sent.";
+        }
+        else if ((operation === "bot_activate" || operation === "bot_withdraw") && (!Number.isFinite(amount) || amount <= 0)) {
+            apiClarification = "I found the bot request, but I need a valid USDT amount. Please repeat it with the bot ID and amount, for example: “" + (operation === "bot_activate" ? "activate" : "withdraw from") + " bot " + botId + " with 50 USDT.” No operation has been sent.";
+        }
+        else {
+            action = { type: "api", operation, target: botId, parameters: operation === "bot_deactivate" ? {} : { amount: String(amount) }, requiresConfirmation: true };
+        }
+    }
+    if (apiClarification) {
+        const response = apiClarification;
+        const nextContext = { ...context, lastIntent: best.intent.id, history: [...(context.history ?? []), normalized].slice(-10), responseHistory: rememberResponse(context, response), pendingIntent: best.intent.id, entities };
+        return { intent: best.intent.id, confidence: best.confidence, response, action: { type: "none" }, normalized, alternatives: alternatives.map(x => x.intent.id), needsClarification: true, entities, context: nextContext };
+    }
+    const response = action.type === "api"
+        ? "I prepared a bot operation for review. Nothing has been changed yet. Check the bot and details in the confirmation panel, then confirm to send the request to CryBots."
+        : chooseResponse(responsePool(best.intent.id), context.responseHistory ?? [], input);
+    const nextContext = { lastIntent: best.intent.id, lastTarget: action.type === "navigate" ? action.target : context.lastTarget, lastKnowledgeId: context.lastKnowledgeId, lastKnowledgeTopic: context.lastKnowledgeTopic, activeGoal: context.activeGoal, goalTopics: context.goalTopics, history: [...(context.history ?? []), normalized].slice(-10), responseHistory: rememberResponse(context, response), pendingIntent: null };
+    return { intent: best.intent.id, confidence: best.confidence, response, action, normalized, alternatives: alternatives.map(x => x.intent.id), needsClarification: false, entities, context: nextContext };
 }

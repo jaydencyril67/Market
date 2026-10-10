@@ -1,9 +1,16 @@
+export type BrainApiOperation = "bot_activate" | "bot_deactivate" | "bot_withdraw";
 export type BrainAction = {
     type: "navigate";
     target: string;
 } | {
     type: "click";
     target: string;
+} | {
+    type: "api";
+    operation: BrainApiOperation;
+    target?: string;
+    parameters?: Record<string, string>;
+    requiresConfirmation?: boolean;
 } | {
     type: "back";
 } | {
@@ -157,6 +164,14 @@ export type BrainContext = {
     runtimeFacts?: BrainRuntimeFact[];
     discoveryVersion?: string;
     discoveryUpdatedAt?: string;
+    appMapCompared?: boolean;
+    appMapSnapshot?: BrainDiscoveredFeature[];
+    appMapChanges?: {
+        kind: "added" | "removed" | "changed";
+        route: string;
+        name: string;
+        details: string;
+    }[];
     runtimePage?: string;
     runtimeControls?: {
         id: string;

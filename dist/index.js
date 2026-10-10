@@ -14,7 +14,7 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createHttpCryBotsBridge = exports.thinkLive = exports.dynamicDataRules = exports.verifiedRelationships = exports.verifiedRoutes = exports.crybotsAudit = exports.verifiedFacts = exports.crybotsSource = exports.executePlan = exports.executeCommand = exports.compileExecution = exports.buildActionPlan = exports.isCompatible = exports.decide = exports.splitRequests = exports.resolveReferences = exports.findVerifiedKnowledge = exports.findKnowledge = exports.knowledge = exports.appKnowledge = exports.BrainSession = void 0;
+exports.createHttpCryBotsBridge = exports.compareAppMap = exports.thinkLive = exports.dynamicDataRules = exports.verifiedRelationships = exports.verifiedRoutes = exports.crybotsAudit = exports.verifiedFacts = exports.crybotsSource = exports.executePlan = exports.executeCommand = exports.compileExecution = exports.buildActionPlan = exports.isCompatible = exports.decide = exports.splitRequests = exports.resolveReferences = exports.findVerifiedKnowledge = exports.findKnowledge = exports.knowledge = exports.appKnowledge = exports.BrainSession = void 0;
 __exportStar(require("./types"), exports);
 __exportStar(require("./brain"), exports);
 var session_1 = require("./session");
@@ -48,6 +48,8 @@ Object.defineProperty(exports, "verifiedRelationships", { enumerable: true, get:
 Object.defineProperty(exports, "dynamicDataRules", { enumerable: true, get: function () { return crybotsAudit_1.dynamicDataRules; } });
 var think_1 = require("./live/think");
 Object.defineProperty(exports, "thinkLive", { enumerable: true, get: function () { return think_1.thinkLive; } });
+var adaptation_1 = require("./knowledge/adaptation");
+Object.defineProperty(exports, "compareAppMap", { enumerable: true, get: function () { return adaptation_1.compareAppMap; } });
 __exportStar(require("./live/types"), exports);
 __exportStar(require("./live/router"), exports);
 var http_1 = require("./live/http");

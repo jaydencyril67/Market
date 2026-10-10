@@ -3,6 +3,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.liveTopicForResult = liveTopicForResult;
 exports.buildLiveQuery = buildLiveQuery;
 const topicByIntent = {
+    balance: "account-state",
+    latest_transaction: "transactions",
+    transactions: "transactions",
     portfolio: "account-state",
     bot_status: "bots",
     bots: "bots",
