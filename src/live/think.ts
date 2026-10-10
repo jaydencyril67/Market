@@ -71,7 +71,7 @@ function summarizeGoal(goal:string,records:Record<string,unknown>):string{
    ["bot profit fields with numeric values",observedProfit.size],
    ["numeric validation issues",numericIssues.length?numericIssues.join("; "):"none found in the recognized fields"],
    ["cross-record consistency",inconsistentProfitBots.length?"contradictory evidence: "+inconsistentProfitBots.map(([id])=>id+" has negative profit but is marked profitable").join(", "):unmatchedProfitBots.length?"no matching bot reference was found in transaction records for "+unmatchedProfitBots.join(", ")+"; this does not prove an error, but the comparison is incomplete":"recognized bot IDs could be compared with available transaction references"],
-   ["performance limitation","a profit-like field alone may be incomplete or period-mismatched; comparable realized profit/loss and transaction evidence over the same period are required to rank bots"]
+   ["performance limitation","status and record counts do not establish profitability; a profit-like field alone may be incomplete or period-mismatched, so comparable realized profit/loss and transaction evidence over the same period are required to rank bots"]
   ]);
  }
  if(goal==="account-overview"){
