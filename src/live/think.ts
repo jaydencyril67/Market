@@ -3,6 +3,7 @@ import {think} from "../brain";
 import {buildLiveQuery,liveTopicForResult} from "./router";
 import {LiveCryBotsBridge,LiveDataResult} from "./types";
 import {compareAppMap} from "../knowledge/adaptation";
+import {composeLiveDataStatus,composeLiveGoalUnavailable} from "../responses/compose";
 
 export type ThinkLiveOptions={userId?:string;runtimeFeatures?:BrainDiscoveredFeature[]};
 
@@ -171,12 +172,12 @@ export async function thinkLive(input:string,context:BrainContext={},bridge:Live
         const live=await bridge.query({topic,input,entities:result.entities as Record<string,string>,userId:options.userId});
         return {topic,live};
       } catch {
-        return {topic,live:{topic,ok:false,data:null,message:"Live data request failed."} as LiveDataResult};
+        return {topic,live:{topic,ok:false,data:null} as LiveDataResult};
       }
     }));
     const available=results.filter(item=>item.live.ok);
     const missing=results.filter(item=>!item.live.ok);
-    if(!available.length)return {...result,response:"I understood the goal, but I couldn't retrieve the connected CryBots records needed to investigate it. Please try again when the connection is available.",liveData:undefined};
+    if(!available.length)return {...result,response:composeLiveGoalUnavailable(goal??"",goalTopics),liveData:undefined};
     const liveData=Object.fromEntries(available.map(item=>[item.topic,item.live.data]));
     let response=summarizeGoal(goal??"",liveData);
     if(missing.length)response+=" Some related records could not be retrieved ("+missing.map(item=>item.topic).join(", ")+"), so this assessment is incomplete.";
@@ -185,8 +186,8 @@ export async function thinkLive(input:string,context:BrainContext={},bridge:Live
   const topic=topicFor(result); if(!topic)return result;
   const query=buildLiveQuery(result,input,result.entities,options.userId); const liveQuery=query??{topic,input,entities:result.entities as Record<string,string>,userId:options.userId}; liveQuery.topic=topic;
   const live=await bridge.query(liveQuery);
-  if(!live.ok)return {...result,response:live.message??"I could not retrieve your current CryBots data right now. Please try again.",action:result.action,liveData:undefined};
-  const summary=reasonOverLiveData(input,live)??(live.topic==="account-state"?"I retrieved your current account data, but the response did not include a recognized balance summary. I won't guess a financial value.":live.topic==="market"?"I retrieved current market data, but the returned payload did not include a recognized price summary. I won't invent a price.":live.topic==="bots"?"I retrieved your current bot records, but the payload did not match a known status summary. I won't infer activity or profitability.":"I retrieved the current CryBots data, but the returned payload does not contain fields I can safely summarize for this question.");
+  if(!live.ok)return {...result,response:composeLiveDataStatus(live.topic,"unavailable",live.message),action:result.action,liveData:undefined};
+  const summary=reasonOverLiveData(input,live)??composeLiveDataStatus(live.topic,"unrecognized");
   const freshness=live.fetchedAt?" Data fetched at "+live.fetchedAt+".":"";
   return {...result,response:summary+freshness,action:result.action,liveData:live.data,context:{...result.context,lastTarget:result.context.lastTarget}};
 }
