@@ -2,6 +2,7 @@ import {BrainContext,BrainDiscoveredFeature,BrainResult} from "../types";
 import {think} from "../brain";
 import {buildLiveQuery,liveTopicForResult} from "./router";
 import {LiveCryBotsBridge,LiveDataResult} from "./types";
+import {compareAppMap} from "../knowledge/adaptation";
 
 export type ThinkLiveOptions={userId?:string;runtimeFeatures?:BrainDiscoveredFeature[]};
 
@@ -18,9 +19,12 @@ function reasonOverLiveData(input:string,live:LiveDataResult):string|undefined{
   const text=input.toLowerCase(); const data=live.data;
   if(live.topic==="transactions"&&Array.isArray(data)){
     if(!data.length)return "You do not have any recorded CryBots transactions yet."; const latest=asRecord(data[0]); if(!latest)return live.message;
-    const title=String(latest.title??latest.category??latest.direction??"Transaction"); const amount=formatAmount(latest.amount,latest.currency);
-    const status=latest.status?String(latest.status):""; const when=latest.createdAt?new Date(String(latest.createdAt)).toLocaleString():"";
-    if(/latest|last|most recent|recent transaction/.test(text))return "Your latest transaction is "+title+" for "+amount+(status?", status: "+status:"")+(when?", recorded "+when: "")+".";
+    const title=String(latest.title??latest.category??latest.direction??"Transaction");
+    const amount=latest.amount!==undefined&&latest.amount!==null?formatAmount(latest.amount,latest.currency??"USDT"):"an amount not recorded";
+    const status=latest.status?String(latest.status):"status not recorded";
+    const parsedDate=latest.createdAt?new Date(String(latest.createdAt)):null;
+    const when=parsedDate&&Number.isFinite(parsedDate.getTime())?parsedDate.toLocaleString():"date not recorded";
+    if(/latest|last|most recent|recent transaction/.test(text))return "Your latest recorded transaction is "+title+", amount "+amount+", status "+status+", recorded "+when+". This is from your CryBots transaction history.";
     return live.message;
   }
   if(live.topic==="bots"){
@@ -61,7 +65,10 @@ export async function thinkLive(input:string,context:BrainContext={},bridge:Live
           Array.isArray(fact.keywords)&&fact.keywords.every((keyword:unknown)=>typeof keyword==="string")&&
           typeof fact.source==="string"&&typeof fact.verifiedAt==="string"
         ):undefined;
-        refreshedContext={...context,discoveredFeatures,runtimeFacts,discoveryVersion:snapshot.version,discoveryUpdatedAt:snapshot.updatedAt};
+        const previousMap=context.appMapSnapshot??[];
+        const hasPriorMap=previousMap.length>0;
+        const appMapChanges=hasPriorMap?compareAppMap(previousMap,discoveredFeatures):[];
+        refreshedContext={...context,discoveredFeatures,runtimeFacts,discoveryVersion:snapshot.version,discoveryUpdatedAt:snapshot.updatedAt,appMapCompared:hasPriorMap,appMapSnapshot:discoveredFeatures,appMapChanges};
       }
     }
   }catch{
@@ -73,7 +80,10 @@ export async function thinkLive(input:string,context:BrainContext={},bridge:Live
     for(const feature of options.runtimeFeatures){
       if(feature&&feature.verified===true&&typeof feature.route==="string"&&/^\/[a-z0-9/_-]+$/i.test(feature.route))merged.set(feature.route,feature);
     }
-    refreshedContext={...refreshedContext,discoveredFeatures:[...merged.values()]};
+    const mergedFeatures=[...merged.values()];
+    const previousMap=context.appMapSnapshot??[];
+    const hasPriorMap=previousMap.length>0;
+    refreshedContext={...refreshedContext,discoveredFeatures:mergedFeatures,appMapSnapshot:mergedFeatures,appMapCompared:hasPriorMap,appMapChanges:hasPriorMap?compareAppMap(previousMap,mergedFeatures):[]};
   }
   const result=think(input,refreshedContext);
   const goal=result.context.activeGoal;

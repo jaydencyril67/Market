@@ -1,5 +1,5 @@
 import {ActionPlan,ExecutionCommand,ExecutionPlan,BrainEntities} from "../types";
-const sensitive=new Set(["withdraw","bot_create","api_keys","webhooks","security"]);
+const sensitive=new Set(["withdraw","bot_withdraw","bot_activate","bot_deactivate","bot_create","api_keys","webhooks","security"]);
 export function compileExecution(plan:ActionPlan,entities:BrainEntities={}):ExecutionPlan{
  const commands:ExecutionCommand[]=plan.steps.map((step,i)=>{
   const parameters:Record<string,string>={};
@@ -7,7 +7,7 @@ export function compileExecution(plan:ActionPlan,entities:BrainEntities={}):Exec
   if(entities.apiKeyId)parameters.apiKeyId=entities.apiKeyId;
   if(entities.webhookId)parameters.webhookId=entities.webhookId;
   if(entities.amount)parameters.amount=entities.amount;
-  const risk=sensitive.has(step.intent)?(step.intent==="withdraw"?"high":"medium"):"low";
+  const risk=sensitive.has(step.intent)?(step.intent==="withdraw"||step.intent==="bot_withdraw"?"high":"medium"):"low";
   const blocked=step.status==="blocked";
   return{id:`cmd-${i+1}`,intent:step.intent,action:step.action,parameters,risk,requiresConfirmation:risk!=="low",status:blocked?"blocked":risk!=="low"?"needs_confirmation":"ready",reason:step.reason};
  });
