@@ -38,10 +38,40 @@ function summarizeGoal(goal:string,records:Record<string,unknown>):string{
  if(goal==="bot-performance"){
   const investments=recordList(records.bots,"investments"),transactions=recordList(records.transactions,"transactions");
   const active=investments.filter((item:any)=>item?.active===true||["activating","active"].includes(String(item?.lifecycleStatus??item?.status??"").toLowerCase()));
+  const numericIssues:string[]=[];
+  const observedProfit=new Map<string,number>();
+  for(const [index,item] of investments.entries()){
+   const bot=asRecord(item);if(!bot)continue;
+   const id=String(bot.botId??bot._id??("record "+(index+1)));
+   for(const key of ["profit","profitLoss","pnl","realizedProfit","unrealizedProfit"]){
+    if(bot[key]===undefined||bot[key]===null||bot[key]==="")continue;
+    const raw=bot[key];const value=typeof raw==="number"?raw:(typeof raw==="string"&&raw.trim()!==""?Number(raw):NaN);
+    if(!Number.isFinite(value)){numericIssues.push(id+" has a non-numeric "+key+" value");continue;}
+    if(key==="profit"||key==="profitLoss"||key==="pnl")observedProfit.set(id,value);
+   }
+   for(const key of ["investment","amount","quantity","efficiency"]){
+    if(bot[key]===undefined||bot[key]===null||bot[key]==="")continue;
+    const raw=bot[key];const value=typeof raw==="number"?raw:(typeof raw==="string"&&raw.trim()!==""?Number(raw):NaN);
+    if(!Number.isFinite(value))numericIssues.push(id+" has a non-numeric "+key+" value");
+    else if((key==="investment"||key==="amount"||key==="quantity")&&value<0)numericIssues.push(id+" has a negative "+key+" value");
+   }
+  }
+  const transactionAmounts=transactions.map((item,index)=>({item:asRecord(item),index})).filter(entry=>entry.item&&entry.item.amount!==undefined&&entry.item.amount!==null&&entry.item.amount!=="");
+  for(const {item,index} of transactionAmounts){
+   const raw=item!.amount;const value=typeof raw==="number"?raw:(typeof raw==="string"&&raw.trim()!==""?Number(raw):NaN);
+   if(!Number.isFinite(value))numericIssues.push("transaction record "+(index+1)+" has a non-numeric amount");
+   else if(value<0)numericIssues.push("transaction record "+(index+1)+" has a negative amount");
+  }
+  const transactionReferences=new Set(transactions.map(item=>{const row=asRecord(item);return String(row?.botId??row?.relatedBotId??"").trim();}).filter(Boolean));
+  const unmatchedProfitBots=[...observedProfit.keys()].filter(id=>!transactionReferences.has(id));
+  const inconsistentProfitBots=[...observedProfit.entries()].filter(([id,value])=>value<0&&active.some((item:any)=>String(item?.botId??item?._id??"")===id&&item?.profitStatus==="profitable"));
   return report("Bot performance review",[
    ["bot investment records",investments.length],["transaction records",transactions.length],
    ["active or activating investments",active.length],
-   ["performance limitation","status and record counts do not establish profitability; comparable profit/loss figures over the same period are required to rank bots"]
+   ["bot profit fields with numeric values",observedProfit.size],
+   ["numeric validation issues",numericIssues.length?numericIssues.join("; "):"none found in the recognized fields"],
+   ["cross-record consistency",inconsistentProfitBots.length?"contradictory evidence: "+inconsistentProfitBots.map(([id])=>id+" has negative profit but is marked profitable").join(", "):unmatchedProfitBots.length?"no matching bot reference was found in transaction records for "+unmatchedProfitBots.join(", ")+"; this does not prove an error, but the comparison is incomplete":"recognized bot IDs could be compared with available transaction references"],
+   ["performance limitation","a profit-like field alone may be incomplete or period-mismatched; comparable realized profit/loss and transaction evidence over the same period are required to rank bots"]
   ]);
  }
  if(goal==="account-overview"){
