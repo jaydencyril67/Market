@@ -193,8 +193,8 @@ export function think(input:string,context:BrainContext={}):BrainResult{
   return{intent:"app-map-adaptation",confidence:.96,response,action:{type:"none"},normalized,alternatives:[],needsClarification:false,entities,context:{...context,history:[...(context.history??[]),normalized].slice(-10),entities}};
  }
  if(asksAboutBalance(input)){
-  const response=composeBalanceNavigationResponse("details");
-  return{intent:"balance",confidence:.98,response,action:{type:"navigate",target:"details"},normalized,alternatives:[],needsClarification:false,entities,context:{...context,lastIntent:"balance",lastTarget:"details",history:[...(context.history??[]),normalized].slice(-10),responseHistory:rememberResponse(context,response),entities}};
+  const response="I'll check your current balance using your live CryBots account data.";
+  return{intent:"balance",confidence:.99,response,action:{type:"none"},normalized,alternatives:[],needsClarification:false,entities,context:{...context,lastIntent:"balance",history:[...(context.history??[]),normalized].slice(-10),responseHistory:rememberResponse(context,response),entities}};
  }
  const detectedGoal=detectGoal(input);
  if(context.activeGoal&&isGoalFollowUp(input)){
