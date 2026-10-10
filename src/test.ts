@@ -98,7 +98,7 @@ async function main():Promise<void>{
   const cases=[
    {input:"open my bots",type:"navigate",target:"/bots"},
    {input:"open my portfolio",type:"navigate",target:"/portfolio"},
-   {input:"show my webhooks",type:"navigate",target:"/webhooks"},
+   {input:"show my webhooks",type:"navigate",target:"webhooks"},
    {input:"show my transaction history",type:"navigate",target:"/transactions"}
   ];
   for(const item of cases){
