@@ -1,0 +1,2 @@
+import { BrainAction, BrainContext } from "../types";
+export declare function composeIntentResponse(intentId: string, action: BrainAction, input: string, context?: BrainContext): string;
