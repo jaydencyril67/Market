@@ -36,6 +36,9 @@ function composeIntentResponse(intentId, action, input, context = {}) {
     const seed = [intentId, input, ...(context.history ?? []).slice(-3)].join("|");
     const target = action.type === "navigate" ? pageLabel(action.target, context) : "";
     if (intentId === "greeting") {
+        if (context.lastTarget) {
+            return "Hi again. The last page I know from our conversation is " + pageLabel(context.lastTarget, context) + ". What would you like to work on next?";
+        }
         const openings = ["What would you like to", "What are you trying to", "What should we"];
         const endings = ["work through", "get done", "look into first"];
         return choose(openings, seed) + " " + choose(endings, seed + "-end") + "?";

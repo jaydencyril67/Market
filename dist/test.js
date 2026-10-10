@@ -49,6 +49,12 @@ async function main() {
             assert(Array.isArray(result.alternatives), "alternatives should be an array for input: " + input);
         }
     });
+    test("greeting can use prior navigation context without claiming current page state", () => {
+        const result = (0, brain_1.think)("hello", { lastTarget: "/bots" });
+        assert(result.response.includes("Bots"), "greeting should mention the last known destination");
+        assert(result.response.toLowerCase().includes("what would you like"), "greeting should invite the next request");
+        assert(!result.response.toLowerCase().includes("you are currently"), "last known destination must not be presented as verified current page state");
+    });
     test("verified product guidance preserves factual safety details", () => {
         const result = (0, brain_1.think)("how do i deposit");
         assert(result.response.toLowerCase().includes("network"), "deposit guidance should preserve asset/network safety detail");
