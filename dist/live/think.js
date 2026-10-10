@@ -11,6 +11,70 @@ const verifiedTopicMap = {
 function topicFor(result) { return (0, router_1.liveTopicForResult)(result) ?? verifiedTopicMap[result.intent ?? ""]; }
 const asRecord = (value) => value && typeof value === "object" && !Array.isArray(value) ? value : null;
 const formatAmount = (value, currency) => { const n = Number(value); return Number.isFinite(n) ? n.toFixed(2) + (currency ? " " + String(currency) : "") : String(value ?? ""); };
+function recordCount(value) {
+    if (Array.isArray(value))
+        return value.length;
+    const record = asRecord(value);
+    if (!record)
+        return undefined;
+    for (const key of ["investments", "bots", "transactions", "webhooks", "deliveries", "deliveryHistory", "notifications", "records", "items", "history", "logs"]) {
+        if (Array.isArray(record[key]))
+            return record[key].length;
+    }
+    return undefined;
+}
+function explicitBalanceSummary(data) {
+    const record = asRecord(data);
+    if (!record)
+        return undefined;
+    const labels = { availableBalance: "available balance", usdtBalance: "USDT balance", balance: "balance", totalBalance: "total balance", walletBalance: "wallet balance", available: "available balance" };
+    const parts = [];
+    for (const [key, label] of Object.entries(labels)) {
+        const value = record[key];
+        if (value !== undefined && value !== null && (typeof value === "number" || typeof value === "string") && String(value).trim() !== "") {
+            if (parts.some(part => part.startsWith(label + ":")))
+                continue;
+            parts.push(label + ": " + formatAmount(value, key.toLowerCase().includes("usdt") ? "USDT" : undefined));
+        }
+    }
+    return parts.length ? parts.join("; ") : undefined;
+}
+function summarizeGoal(goal, records) {
+    const bots = asRecord(records.bots);
+    const investments = Array.isArray(bots?.investments) ? bots.investments : Array.isArray(records.bots) ? records.bots : [];
+    const transactions = Array.isArray(records.transactions) ? records.transactions : [];
+    const account = records["account-state"];
+    const webhooksData = asRecord(records.webhooks);
+    const webhooks = Array.isArray(webhooksData?.webhooks) ? webhooksData.webhooks : Array.isArray(records.webhooks) ? records.webhooks : [];
+    const deliveryValue = webhooksData?.deliveries ?? webhooksData?.deliveryHistory ?? webhooksData?.history ?? webhooksData?.logs;
+    const deliveries = Array.isArray(deliveryValue) ? deliveryValue : [];
+    if (goal === "bot-performance") {
+        const active = investments.filter((item) => item?.active === true || ["activating", "active"].includes(String(item?.lifecycleStatus ?? item?.status ?? "").toLowerCase()));
+        let response = "I checked " + investments.length + " bot investment record" + (investments.length === 1 ? "" : "s") + " and " + transactions.length + " transaction record" + (transactions.length === 1 ? "" : "s") + ". ";
+        response += active.length + " bot investment" + (active.length === 1 ? " is" : "s are") + " marked active or activating. ";
+        response += "That confirms status, not profitability: I will only rank bots when the returned records provide comparable profit or loss figures for the same period.";
+        return response;
+    }
+    if (goal === "account-overview") {
+        const balance = explicitBalanceSummary(account);
+        let response = "I checked the connected account-state and transaction records. ";
+        if (balance)
+            response += "The returned account data reports " + balance + ". ";
+        else
+            response += "The account response did not expose a recognized balance field, so I won't guess your balance. ";
+        response += "I also found " + transactions.length + " transaction record" + (transactions.length === 1 ? "" : "s") + " in the returned history.";
+        return response;
+    }
+    const enabled = webhooks.filter((item) => item?.enabled === true).length;
+    let response = "I checked " + webhooks.length + " webhook configuration record" + (webhooks.length === 1 ? "" : "s") + ". ";
+    response += enabled + " are marked enabled and " + (webhooks.length - enabled) + " are marked disabled or not explicitly enabled. ";
+    if (deliveryValue !== undefined)
+        response += "The returned payload includes " + deliveries.length + " delivery/log record" + (deliveries.length === 1 ? "" : "s") + ". ";
+    else
+        response += "The returned payload did not include a recognizable delivery-history list, so configuration alone cannot confirm delivery success. ";
+    response += "I won't infer delivery success from enabled status alone.";
+    return response;
+}
 function reasonOverLiveData(input, live) {
     const text = input.toLowerCase();
     const data = live.data;
@@ -43,7 +107,6 @@ function reasonOverLiveData(input, live) {
             const id = active[0]?.botId;
             return id ? "Bot " + id + " is currently active or activating." : live.message;
         }
-        return live.message;
     }
     if (live.topic === "webhooks") {
         const record = asRecord(data);
@@ -62,6 +125,47 @@ function reasonOverLiveData(input, live) {
             if (n)
                 return "Your latest notification is: " + String(n.title ?? n.message ?? "Notification") + ".";
         }
+    }
+    if (live.topic === "account-state" && (/balance|how much|portfolio|holdings|assets|available/.test(text))) {
+        const summary = explicitBalanceSummary(data);
+        if (summary)
+            return "Your current account data reports " + summary + ".";
+        return "I retrieved your account data, but it did not include a recognized balance field. I won't guess a financial value.";
+    }
+    if (live.topic === "market" && Array.isArray(data) && data.length && (/price|market|movers|change|symbol|trading/.test(text))) {
+        const rows = data.slice(0, 5).map((item) => {
+            const record = asRecord(item);
+            if (!record)
+                return "";
+            const symbol = record.symbol ?? record.asset ?? record.pair;
+            const price = record.price ?? record.lastPrice ?? record.currentPrice;
+            const change = record.change24h ?? record.priceChangePercent ?? record.changePercent;
+            if (!symbol || price === undefined || price === null)
+                return "";
+            return String(symbol) + " " + formatAmount(price, record.currency ?? "USDT") + (change !== undefined && change !== null ? ", 24h change " + String(change) + "%" : "");
+        }).filter(Boolean);
+        if (rows.length)
+            return "Current market data returned: " + rows.join("; ") + ".";
+    }
+    if (live.topic === "bots") {
+        const record = asRecord(data);
+        const investments = Array.isArray(record?.investments) ? record.investments : Array.isArray(data) ? data : [];
+        if (/how many|count|total|my bots|bots do i have/.test(text) && investments.length >= 0) {
+            const active = investments.filter((item) => item?.active === true || ["activating", "active"].includes(String(item?.lifecycleStatus ?? item?.status ?? "").toLowerCase())).length;
+            return "The live response contains " + investments.length + " bot investment record" + (investments.length === 1 ? "" : "s") + ", including " + active + " marked active or activating. This is a status count, not a profitability assessment.";
+        }
+    }
+    if (live.topic === "webhooks") {
+        const record = asRecord(data);
+        const webhooks = Array.isArray(record?.webhooks) ? record.webhooks : Array.isArray(data) ? data : [];
+        if (/how many|count|total/.test(text) && /webhook/.test(text))
+            return "The live response contains " + webhooks.length + " webhook configuration record" + (webhooks.length === 1 ? "" : "s") + ".";
+    }
+    if (live.topic === "notifications") {
+        const record = asRecord(data);
+        const notifications = Array.isArray(record?.notifications) ? record.notifications : Array.isArray(data) ? data : [];
+        if (/how many|count|unread/.test(text))
+            return "The live response contains " + notifications.length + " notification record" + (notifications.length === 1 ? "" : "s") + ". This count only reflects the records returned by CryBots.";
     }
     return live.message;
 }
@@ -124,16 +228,7 @@ async function thinkLive(input, context = {}, bridge, options = {}) {
         if (!available.length)
             return { ...result, response: "I understood the goal, but I couldn't retrieve the connected CryBots records needed to investigate it. Please try again when the connection is available.", liveData: undefined };
         const liveData = Object.fromEntries(available.map(item => [item.topic, item.live.data]));
-        let response;
-        if (goal === "bot-performance") {
-            response = "I checked the available bot and transaction records together. Bot status tells us whether a bot is active, while recorded trades and transaction movements provide different evidence; an active bot alone does not prove profitability. I won't rank bots unless the returned records contain comparable performance results.";
-        }
-        else if (goal === "account-overview") {
-            response = "I checked the available account-state and transaction records together. Portfolio data describes current holdings; transaction history helps explain deposits, withdrawals, and other recorded movements. These are related but not interchangeable, so exact changes should be reconciled against the returned records.";
-        }
-        else {
-            response = "I checked the available webhook configuration records. To diagnose delivery, compare each webhook's enabled state and endpoint with its recorded delivery results or logs; configuration alone does not prove an event was delivered.";
-        }
+        let response = summarizeGoal(goal ?? "", liveData);
         if (missing.length)
             response += " Some related records could not be retrieved (" + missing.map(item => item.topic).join(", ") + "), so this assessment is incomplete.";
         return { ...result, response, liveData: { goal, checkedTopics: available.map(item => item.topic), records: liveData, unavailableTopics: missing.map(item => item.topic) }, context: { ...result.context, lastTarget: result.context.lastTarget } };
@@ -147,5 +242,7 @@ async function thinkLive(input, context = {}, bridge, options = {}) {
     const live = await bridge.query(liveQuery);
     if (!live.ok)
         return { ...result, response: live.message ?? "I could not retrieve your current CryBots data right now. Please try again.", action: result.action, liveData: undefined };
-    return { ...result, response: reasonOverLiveData(input, live) ?? "I checked the current CryBots data, but there is no live summary available yet.", action: result.action, liveData: live.data, context: { ...result.context, lastTarget: result.context.lastTarget } };
+    const summary = reasonOverLiveData(input, live) ?? (live.topic === "account-state" ? "I retrieved your current account data, but the response did not include a recognized balance summary. I won't guess a financial value." : live.topic === "market" ? "I retrieved current market data, but the returned payload did not include a recognized price summary. I won't invent a price." : live.topic === "bots" ? "I retrieved your current bot records, but the payload did not match a known status summary. I won't infer activity or profitability." : "I retrieved the current CryBots data, but the returned payload does not contain fields I can safely summarize for this question.");
+    const freshness = live.fetchedAt ? " Data fetched at " + live.fetchedAt + "." : "";
+    return { ...result, response: summary + freshness, action: result.action, liveData: live.data, context: { ...result.context, lastTarget: result.context.lastTarget } };
 }
