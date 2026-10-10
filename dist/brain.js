@@ -7,6 +7,7 @@ const core_2 = require("./responses/core");
 const synonyms_1 = require("./language/synonyms");
 const app_1 = require("./knowledge/app");
 const matcher_1 = require("./knowledge/matcher");
+const crybotsSource_1 = require("./knowledge/crybotsSource");
 const patterns_1 = require("./language/patterns");
 const entities_1 = require("./language/entities");
 const references_1 = require("./language/references");
@@ -101,6 +102,76 @@ function score(input, intent) { const text = (0, exports.normalize)(input); if (
     if (tokenSet(text).has((0, exports.normalize)(k)))
         score += .08; return Math.min(.99, score + patternScore(input, intent.id) + (intent.priority ?? 0)); }
 const rememberResponse = (context, response) => [...(context.responseHistory ?? []), response].slice(-8);
+const isContextualFollowUp = (input) => /^(tell me more|explain (that|it|this)|what do you mean|how does (that|it|this) work|why is that|go deeper|more details|continue|and then|what about it|what about that|elaborate|can you explain more|give me more details|say more)$/.test((0, exports.normalize)(input));
+const goalGuides = [
+    { id: "bot-performance", topics: ["bots", "trading", "transactions"], target: "my-bots", response: "To understand bot performance, connect three pieces: My Bots shows which bots are active and their available status; Trade History helps you inspect recorded trading activity; transaction records can help explain account movements. An active bot is not necessarily a profitable one. I can help you review these areas, but I need actual records to identify the best or worst performer." },
+    { id: "account-overview", topics: ["portfolio", "transactions"], target: "portfolio", response: "For a useful account overview, start with Portfolio for your current holdings, then compare Transaction History for deposits, withdrawals, and other recorded account movements. These answer different questions, and I should use current account data for exact amounts." },
+    { id: "webhook-troubleshooting", topics: ["webhooks", "logs"], target: "webhooks", response: "To troubleshoot a webhook, connect its configuration with its delivery history: verify the endpoint and enabled state, then inspect the latest delivery result or available logs. Keep its secret private. I can explain the evidence you provide, but I won't assume a delivery succeeded." },
+    { id: "account-security", topics: ["security", "api keys"], target: "security", response: "For account security, review your Security settings and active device sessions, then check API Keys and their permissions if you use integrations. Use the minimum permissions needed and revoke anything unfamiliar or no longer required." }
+];
+const detectGoal = (input) => {
+    const text = (0, exports.normalize)(input);
+    const goalFraming = /\b(help me understand|help me improve|help me review|help me evaluate|help me compare|i want to understand|i want to improve|i want to review|i want to compare|help me figure out|i am trying to understand|i'm trying to understand|i need to know|help me figure|i want to know|trying to find out|can you help me|how can i tell|how do i know)\b/.test(text);
+    const botGoal = /\b(which|best|worst|profitable|profit|losing|performance|performing|results|returns|making money|earning)\b/.test(text) && /\b(bot|bots|trading bot|trade history|trades)\b/.test(text);
+    const accountGoal = /\b(why|explain|compare|review|missing|lower|dropped|changed|difference|movement|reconcile|where did .* go)\b/.test(text) && /\b(account|money|funds|balance|assets|portfolio|transaction|transactions)\b/.test(text);
+    const webhookGoal = /\b(not working|failed|failing|not delivering|delivery|deliver|missing|troubleshoot|debug|why|check|fix)\b/.test(text) && /\b(webhook|webhooks|event|notification)\b/.test(text);
+    const securityGoal = /\b(secure|security|protect|protection|safe|safety|suspicious|unfamiliar|risk)\b/.test(text) && /\b(account|device|session|api key|keys|security|login|logged in)\b/.test(text);
+    if ((goalFraming && /\b(bot|bots|trading bot|performance|performing|profitability|results)\b/.test(text)) || botGoal)
+        return goalGuides[0];
+    if ((goalFraming && /\b(account|money|funds|balance|assets|portfolio)\b/.test(text)) || accountGoal)
+        return goalGuides[1];
+    if ((goalFraming && /\b(webhook|webhooks|delivery)\b/.test(text)) || webhookGoal)
+        return goalGuides[2];
+    if ((goalFraming && /\b(security|secure|protect|protection)\b/.test(text)) || securityGoal)
+        return goalGuides[3];
+    return undefined;
+};
+const isGoalFollowUp = (input) => /^(what should i check|what should i look at|what next|what do i check next|which one is best|which is best|which one is worst|why is it losing|how do i know|how can i tell|what does that mean|how do i improve|what should i do|and what about the results|what about my data|what do the records say|what should i compare|can you check that|check it for me|then what|what about now)$/.test((0, exports.normalize)(input));
+const asksAboutCurrentPage = (input) => /\b(what can i do here|what can i do on this page|what can you do here|what buttons are available|which buttons are available|what controls are available|what controls do i have|what is on this page|what can you see here|show me the controls|what actions are available)\b/.test((0, exports.normalize)(input));
+const answerFromRuntimePage = (context) => {
+    const page = (context.runtimePage || "").replace(/^\//, "").replace(/[-_/]+/g, " ").trim() || "current page";
+    const controls = (context.runtimeControls ?? []).filter(control => control && typeof control.label === "string" && control.label.trim()).slice(0, 12);
+    if (!controls.length)
+        return "I can identify the current page as " + page + ", but I couldn't read any visible controls from the app just now.";
+    const enabled = controls.filter(control => !control.disabled).map(control => control.label);
+    const disabled = controls.filter(control => control.disabled).map(control => control.label);
+    let response = "On " + page + ", I can currently see these controls: " + enabled.join("; ") + ".";
+    if (disabled.length)
+        response += " These controls appear disabled: " + disabled.join("; ") + ".";
+    response += " This is a live view of the visible interface, not a guarantee that every action is available or that an action has succeeded.";
+    return response;
+};
+const matchDiscoveredFeature = (input, features) => {
+    const text = (0, exports.normalize)(input);
+    const tokens = new Set(text.split(" ").filter(x => x.length > 2 && !["where", "what", "when", "show", "open", "take", "me", "the", "can", "you", "please", "find", "page", "section", "feature", "want", "need"].includes(x)));
+    let best;
+    for (const feature of features) {
+        if (feature.verified !== true || !feature.route || !/^\/[a-z0-9/_-]+$/i.test(feature.route))
+            continue;
+        const name = (0, exports.normalize)(feature.name);
+        const id = (0, exports.normalize)(feature.id.replace(/[-_]/g, " "));
+        const phrases = [name, id, ...feature.keywords.map(exports.normalize)].filter(Boolean);
+        let score = 0;
+        if (name && text.includes(name))
+            score = 1;
+        else if (id && text.includes(id))
+            score = .92;
+        else if (phrases.some(phrase => phrase.length > 2 && text.includes(phrase)))
+            score = .86;
+        else {
+            const featureTokens = new Set([name, ...feature.keywords].flatMap(value => (0, exports.normalize)(value).split(" ")).filter(x => x.length > 2));
+            let overlap = 0;
+            for (const token of featureTokens)
+                if (tokens.has(token))
+                    overlap++;
+            if (overlap >= 2)
+                score = Math.min(.78, .48 + overlap * .08);
+        }
+        if (score > (best?.score ?? 0))
+            best = { feature, score };
+    }
+    return best && best.score >= .72 ? best : undefined;
+};
 function think(input, context = {}) {
     const requests = (0, decision_1.splitRequests)(input);
     if (requests.length > 1) {
@@ -118,11 +189,43 @@ function think(input, context = {}) {
     const normalized = (0, exports.normalize)(input);
     const entities = (0, entities_1.extractEntities)(input, context.entities);
     const references = (0, references_1.resolveReferences)(input, context, entities);
-    const verifiedHit = (0, matcher_1.findVerifiedKnowledge)(input);
+    const detectedGoal = detectGoal(input);
+    if (context.activeGoal && isGoalFollowUp(input)) {
+        const guide = goalGuides.find(item => item.id === context.activeGoal);
+        if (guide) {
+            const response = guide.id === "bot-performance" ? "To judge which bot is performing best, compare each bot’s recorded results over the same time period, then check its status and related trades. I can’t rank your bots without those actual records. Start in My Bots, then use Trade History to verify the activity." : guide.response;
+            return { intent: "goal-follow-up:" + guide.id, confidence: .84, response, action: { type: "navigate", target: guide.target }, normalized, alternatives: [], needsClarification: false, entities, context: { ...context, history: [...(context.history ?? []), normalized].slice(-10), entities, activeGoal: guide.id, goalTopics: guide.topics, lastTarget: guide.target } };
+        }
+    }
+    if (detectedGoal) {
+        return { intent: "goal:" + detectedGoal.id, confidence: .86, response: detectedGoal.response, action: { type: "navigate", target: detectedGoal.target }, normalized, alternatives: [], needsClarification: false, entities, context: { ...context, history: [...(context.history ?? []), normalized].slice(-10), entities, activeGoal: detectedGoal.id, goalTopics: detectedGoal.topics, lastTarget: detectedGoal.target } };
+    }
+    if (context.lastKnowledgeId && isContextualFollowUp(input)) {
+        const prior = (context.runtimeFacts?.length ? context.runtimeFacts : crybotsSource_1.verifiedFacts).find(entry => entry.id === context.lastKnowledgeId);
+        if (prior) {
+            const related = crybotsSource_1.verifiedFacts.find(entry => entry.topic === prior.topic && entry.id !== prior.id);
+            const selected = related ?? prior;
+            const response = related ? "A little more on " + prior.topic.replace(/-/g, " ") + ": " + related.answer : "Here is the context I was referring to: " + prior.answer;
+            return { intent: `verified:${selected.id}`, confidence: .88, response, action: { type: "none" }, normalized, alternatives: [], needsClarification: false, entities, context: { ...context, history: [...(context.history ?? []), normalized].slice(-10), entities, lastKnowledgeId: selected.id, lastKnowledgeTopic: selected.topic } };
+        }
+    }
+    if (asksAboutCurrentPage(input)) {
+        const response = answerFromRuntimePage(context);
+        return { intent: "runtime-page-overview", confidence: .9, response, action: { type: "none" }, normalized, alternatives: [], needsClarification: false, entities, context: { ...context, history: [...(context.history ?? []), normalized].slice(-10), entities } };
+    }
+    const wantsFeatureNavigation = /\b(open|go to|take me to|navigate to|show me|bring me to|where is|where can i find|visit)\b/.test(normalized);
+    const discoveredHit = wantsFeatureNavigation ? matchDiscoveredFeature(input, context.discoveredFeatures ?? []) : undefined;
+    if (discoveredHit) {
+        const feature = discoveredHit.feature;
+        const response = feature.description.trim() || "I found this feature in the latest verified app map.";
+        return { intent: "discovered:" + feature.id, confidence: discoveredHit.score, response, action: { type: "navigate", target: feature.route }, normalized, alternatives: [], needsClarification: false, entities, context: { ...context, history: [...(context.history ?? []), normalized].slice(-10), entities, lastTarget: feature.route, discoveryVersion: context.discoveryVersion, discoveryUpdatedAt: context.discoveryUpdatedAt } };
+    }
+    const runtimeFacts = (context.runtimeFacts ?? []).filter(fact => fact && typeof fact.id === "string" && typeof fact.answer === "string" && Array.isArray(fact.questions) && Array.isArray(fact.keywords) && typeof fact.source === "string" && typeof fact.verifiedAt === "string");
+    const verifiedHit = (0, matcher_1.findVerifiedKnowledge)(input, runtimeFacts.length ? runtimeFacts : undefined);
     const knowledgeHit = (0, matcher_1.findKnowledge)(input, app_1.knowledge);
     if (verifiedHit && verifiedHit.score >= .52) {
         const nextContext = { ...context, history: [...(context.history ?? []), normalized].slice(-10), pendingIntent: null };
-        return { intent: `verified:${verifiedHit.entry.id}`, confidence: verifiedHit.score, response: verifiedHit.entry.answer, action: verifiedHit.entry.route ? { type: "navigate", target: verifiedHit.entry.route } : { type: "none" }, normalized, alternatives: [], needsClarification: false, entities, context: { ...nextContext, entities } };
+        return { intent: `verified:${verifiedHit.entry.id}`, confidence: verifiedHit.score, response: verifiedHit.entry.answer, action: verifiedHit.entry.route ? { type: "navigate", target: verifiedHit.entry.route } : { type: "none" }, normalized, alternatives: [], needsClarification: false, entities, context: { ...nextContext, entities, lastKnowledgeId: verifiedHit.entry.id, lastKnowledgeTopic: verifiedHit.entry.topic } };
     }
     if (knowledgeHit && knowledgeHit.score >= .55) {
         const nextContext = { ...context, history: [...(context.history ?? []), normalized].slice(-10), pendingIntent: null };
@@ -166,6 +269,6 @@ function think(input, context = {}) {
         }
     }
     const response = chooseResponse(responsePool(best.intent.id), context.responseHistory ?? [], input);
-    const nextContext = { lastIntent: best.intent.id, lastTarget: best.action?.type === "navigate" ? best.action.target : context.lastTarget, history: [...(context.history ?? []), normalized].slice(-10), responseHistory: rememberResponse(context, response), pendingIntent: null };
+    const nextContext = { lastIntent: best.intent.id, lastTarget: best.action?.type === "navigate" ? best.action.target : context.lastTarget, lastKnowledgeId: context.lastKnowledgeId, lastKnowledgeTopic: context.lastKnowledgeTopic, activeGoal: context.activeGoal, goalTopics: context.goalTopics, history: [...(context.history ?? []), normalized].slice(-10), responseHistory: rememberResponse(context, response), pendingIntent: null };
     return { intent: best.intent.id, confidence: best.confidence, response, action: best.action ?? { type: "none" }, normalized, alternatives: alternatives.map(x => x.intent.id), needsClarification: false, entities, context: nextContext };
 }

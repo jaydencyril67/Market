@@ -19,10 +19,10 @@ export type DynamicDataRule = {
 };
 export declare const crybotsAudit: {
     readonly repository: "jaydencyril67/Kingshall";
-    readonly ref: "305af63968891264065ae5bab0a2423ea4997912";
+    readonly ref: "f0eca3c11019d7a6d2f5516358d1b8a145166d3f";
     readonly verifiedFrom: "src/index.tsx";
-    readonly purpose: "v1.2 route and architecture audit";
-    readonly rule: "The Brain may explain verified navigation and feature relationships, but must query CryBots for live account state instead of inventing it.";
+    readonly purpose: "v1.3 current CryBots app knowledge audit";
+    readonly rule: "The Brain may explain verified navigation, marketplace, WorldScope, developer, security, and history features, but must query CryBots for live account state instead of inventing it.";
 };
 export declare const verifiedRoutes: CryBotsRouteFact[];
 export declare const verifiedRelationships: CryBotsRelationship[];

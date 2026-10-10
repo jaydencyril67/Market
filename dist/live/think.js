@@ -64,7 +64,72 @@ function reasonOverLiveData(input, live) {
     return live.message;
 }
 async function thinkLive(input, context = {}, bridge, options = {}) {
-    const result = (0, brain_1.think)(input, context);
+    let refreshedContext = context;
+    try {
+        if (bridge.discover) {
+            const snapshot = await bridge.discover();
+            if (snapshot && typeof snapshot.version === "string" && typeof snapshot.updatedAt === "string" && Array.isArray(snapshot.features)) {
+                const discoveredFeatures = snapshot.features.filter(feature => feature && feature.verified === true && typeof feature.id === "string" && typeof feature.name === "string" &&
+                    typeof feature.route === "string" && /^\/[a-z0-9/_-]+$/i.test(feature.route) &&
+                    typeof feature.description === "string" && Array.isArray(feature.keywords) && feature.keywords.every((keyword) => typeof keyword === "string"));
+                const runtimeFacts = Array.isArray(snapshot.facts) ? snapshot.facts.filter(fact => fact && typeof fact.id === "string" && typeof fact.topic === "string" && typeof fact.answer === "string" &&
+                    Array.isArray(fact.questions) && fact.questions.every((question) => typeof question === "string") &&
+                    Array.isArray(fact.keywords) && fact.keywords.every((keyword) => typeof keyword === "string") &&
+                    typeof fact.source === "string" && typeof fact.verifiedAt === "string") : undefined;
+                refreshedContext = { ...context, discoveredFeatures, runtimeFacts, discoveryVersion: snapshot.version, discoveryUpdatedAt: snapshot.updatedAt };
+            }
+        }
+    }
+    catch {
+        // Discovery is opportunistic; a temporary catalogue outage must not block normal Brain responses.
+    }
+    if (options.runtimeFeatures?.length) {
+        const merged = new Map();
+        for (const feature of refreshedContext.discoveredFeatures ?? [])
+            merged.set(feature.route, feature);
+        for (const feature of options.runtimeFeatures) {
+            if (feature && feature.verified === true && typeof feature.route === "string" && /^\/[a-z0-9/_-]+$/i.test(feature.route))
+                merged.set(feature.route, feature);
+        }
+        refreshedContext = { ...refreshedContext, discoveredFeatures: [...merged.values()] };
+    }
+    const result = (0, brain_1.think)(input, refreshedContext);
+    const goal = result.context.activeGoal;
+    const relatedTopics = {
+        "bot-performance": ["bots", "transactions"],
+        "account-overview": ["account-state", "transactions"],
+        "webhook-troubleshooting": ["webhooks"],
+    };
+    const goalTopics = goal ? relatedTopics[goal] : undefined;
+    if (goalTopics?.length) {
+        const results = await Promise.all(goalTopics.map(async (topic) => {
+            try {
+                const live = await bridge.query({ topic, input, entities: result.entities, userId: options.userId });
+                return { topic, live };
+            }
+            catch {
+                return { topic, live: { topic, ok: false, data: null, message: "Live data request failed." } };
+            }
+        }));
+        const available = results.filter(item => item.live.ok);
+        const missing = results.filter(item => !item.live.ok);
+        if (!available.length)
+            return { ...result, response: "I understood the goal, but I couldn't retrieve the connected CryBots records needed to investigate it. Please try again when the connection is available.", liveData: undefined };
+        const liveData = Object.fromEntries(available.map(item => [item.topic, item.live.data]));
+        let response;
+        if (goal === "bot-performance") {
+            response = "I checked the available bot and transaction records together. Bot status tells us whether a bot is active, while recorded trades and transaction movements provide different evidence; an active bot alone does not prove profitability. I won't rank bots unless the returned records contain comparable performance results.";
+        }
+        else if (goal === "account-overview") {
+            response = "I checked the available account-state and transaction records together. Portfolio data describes current holdings; transaction history helps explain deposits, withdrawals, and other recorded movements. These are related but not interchangeable, so exact changes should be reconciled against the returned records.";
+        }
+        else {
+            response = "I checked the available webhook configuration records. To diagnose delivery, compare each webhook's enabled state and endpoint with its recorded delivery results or logs; configuration alone does not prove an event was delivered.";
+        }
+        if (missing.length)
+            response += " Some related records could not be retrieved (" + missing.map(item => item.topic).join(", ") + "), so this assessment is incomplete.";
+        return { ...result, response, liveData: { goal, checkedTopics: available.map(item => item.topic), records: liveData, unavailableTopics: missing.map(item => item.topic) }, context: { ...result.context, lastTarget: result.context.lastTarget } };
+    }
     const topic = topicFor(result);
     if (!topic)
         return result;

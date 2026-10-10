@@ -12,7 +12,11 @@ exports.responses = {
         "Good to see you. What can I do for you?",
         "Hey. Tell me what you need and I’ll take it from there.",
         "Hi 👋 What are you trying to get done?",
-        "Hey — what’s on your mind?"
+        "Hey — what’s on your mind?",
+        "Hi there. Ask me a question, or tell me what you want to get done.",
+        "Hey, I’m ready when you are. What should we look at?",
+        "Hi. We can take it one step at a time — what do you need?",
+        "Hey 👋 What would you like to figure out today?"
     ],
     acknowledgement: [
         "Got it.",
@@ -156,7 +160,11 @@ exports.responses = {
         "If you’re not sure what to ask, tell me what you’re trying to accomplish and I’ll work from there.",
         "I can help with app navigation and supported account questions, including recent activity and bot information.",
         "Ask me what you want to know or do; I’ll use the capabilities available to me.",
-        "I can help you move around CryBots and answer questions using the data and features I can actually access."
+        "I can help you move around CryBots and answer questions using the data and features I can actually access.",
+        "Tell me the outcome you want, and I’ll help find the right supported step.",
+        "You can ask about a feature, request a page, or ask me to explain something you see.",
+        "If the answer depends on your account, I’ll use available records instead of making assumptions.",
+        "Not sure where to start? Describe the problem in everyday words."
     ],
     navigation_success: [
         "Done — you’re there.",
@@ -322,7 +330,11 @@ exports.responses = {
         "Tell me the goal rather than the exact button name if you prefer.",
         "What do you need help with?",
         "Give me the question or action and I’ll take it from there.",
-        "Alright — what are we trying to get done?"
+        "Alright — what are we trying to get done?",
+        "Tell me a little more about what you mean and I’ll help narrow it down.",
+        "You don’t need to use exact button names. Just describe what you want.",
+        "I can explain a feature, help find a page, or check supported account information.",
+        "Let’s start with your goal. What are you trying to do?"
     ],
     context_unclear: [
         "I think you’re referring to something from the last step, but I can’t tell which part yet.",

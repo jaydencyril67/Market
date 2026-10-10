@@ -3,10 +3,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.dynamicDataRules = exports.verifiedRelationships = exports.verifiedRoutes = exports.crybotsAudit = void 0;
 exports.crybotsAudit = {
     repository: "jaydencyril67/Kingshall",
-    ref: "305af63968891264065ae5bab0a2423ea4997912",
+    ref: "f0eca3c11019d7a6d2f5516358d1b8a145166d3f",
     verifiedFrom: "src/index.tsx",
-    purpose: "v1.2 route and architecture audit",
-    rule: "The Brain may explain verified navigation and feature relationships, but must query CryBots for live account state instead of inventing it."
+    purpose: "v1.3 current CryBots app knowledge audit",
+    rule: "The Brain may explain verified navigation, marketplace, WorldScope, developer, security, and history features, but must query CryBots for live account state instead of inventing it."
 };
 exports.verifiedRoutes = [
     { route: "/", key: "landing", component: "LandingPage", access: "public", area: "public", sourcePath: "src/index.tsx" },
@@ -40,6 +40,7 @@ exports.verifiedRoutes = [
     { route: "/trade", key: "trade", component: "TradePage", access: "protected", area: "trading", sourcePath: "src/index.tsx" },
     { route: "/chart", key: "chart", component: "Chart", access: "protected", area: "trading", sourcePath: "src/index.tsx" },
     { route: "/trade/history", key: "trade-history", component: "TradeHistory", access: "protected", area: "trading", sourcePath: "src/index.tsx" },
+    { route: "/worldscope", key: "worldscope", component: "WorldScopePage", access: "protected", area: "market-intelligence", sourcePath: "src/components/WorldScopePage.tsx" },
     { route: "/market", key: "market", component: "Market", access: "protected", area: "bots", sourcePath: "src/index.tsx" },
     { route: "/creation", key: "creation", component: "Creation", access: "protected", area: "bots", sourcePath: "src/index.tsx" },
     { route: "/rentals", key: "rentals", component: "RentalsPage", access: "protected", area: "bots", sourcePath: "src/index.tsx" },
@@ -90,6 +91,7 @@ exports.verifiedRoutes = [
 ];
 exports.verifiedRelationships = [
     { from: "/market", to: ["/commerce", "/rentals", "/creation", "/bots"], relationship: "parent marketplace" },
+    { from: "/worldscope", to: [], relationship: "market-intelligence subscriptions and rankings" },
     { from: "/asset", to: ["/deposit", "/withdrawals", "/transfer", "/manage"], relationship: "asset-management hub" },
     { from: "/profile", to: ["/details", "/statistics", "/security", "/danger"], relationship: "account hub" },
     { from: "/help", to: ["/faq", "/chat", "/tickets"], relationship: "support hub" },

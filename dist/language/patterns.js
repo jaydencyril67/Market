@@ -11,5 +11,17 @@ exports.patterns = [
     { intent: "api_keys", weight: .22, patterns: ["where can i manage developer access", "show my developer keys", "i need an api credential", "where are my api credentials"] },
     { intent: "webhooks", weight: .22, patterns: ["where can i manage callbacks", "show my webhook settings", "i need webhook access", "where are my event callbacks"] },
     { intent: "security", weight: .22, patterns: ["how do i protect my account", "how can i secure my account", "help me with account security", "where can i enable two factor"] },
-    { intent: "voice", weight: .20, patterns: ["i want to talk to you", "can i speak to crybots", "help me use voice", "how can i talk instead of typing"] }
+    { intent: "voice", weight: .20, patterns: ["i want to talk to you", "can i speak to crybots", "help me use voice", "how can i talk instead of typing"] },
+    { intent: "deposit", weight: .22, patterns: ["where do i add money", "how do i top up", "i need to fund my wallet", "how do i put money into crybots", "can i pay into my account"] },
+    { intent: "withdraw", weight: .22, patterns: ["how do i get my money out", "how do i request a payout", "i want to move funds out", "how do i cash out", "where do i request a withdrawal"] },
+    { intent: "portfolio", weight: .22, patterns: ["what is my current balance", "how much money is in my account", "show my wallet balance", "what do i currently own", "how much have i got"] },
+    { intent: "transactions", weight: .22, patterns: ["show my recent activity", "what was my last transaction", "where can i see my deposits", "find a payment i made", "show my account history"] },
+    { intent: "trading", weight: .22, patterns: ["show my trade history", "what trades have i made", "where are my open positions", "how is my trading going", "show my profit and loss"] },
+    { intent: "bot_status", weight: .24, patterns: ["is my bot still working", "why is my bot not running", "show my bot results", "how much has my bot made", "is the bot active"] },
+    { intent: "bots", weight: .22, patterns: ["where are my bots", "show all my bots", "manage my automations", "which bots are active", "take me to bot management"] },
+    { intent: "api_keys", weight: .22, patterns: ["how do i connect an app", "where do i create an api key", "show my api permissions", "how do i revoke developer access", "how do integrations access my account"] },
+    { intent: "webhooks", weight: .22, patterns: ["why did my webhook fail", "show webhook delivery history", "where can i test my webhook", "how do i configure callbacks", "check my webhook events"] },
+    { intent: "security", weight: .22, patterns: ["how do i set up a passkey", "show my logged in devices", "where can i manage sessions", "how do i change my security code", "how do i protect my login"] },
+    { intent: "help", weight: .20, patterns: ["what can you help me with", "what commands do you understand", "explain how this app works", "i do not understand this page", "help me find a feature"] },
+    { intent: "voice", weight: .20, patterns: ["can you hear what i say", "i want to use speech", "listen to my request", "how do i speak to you", "can i use voice commands"] }
 ];

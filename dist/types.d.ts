@@ -88,6 +88,26 @@ export type ExecutionResult = {
     status: "executed" | "failed" | "rejected";
     message: string;
 };
+export type BrainDiscoveredFeature = {
+    id: string;
+    name: string;
+    route: string;
+    description: string;
+    keywords: string[];
+    relatedTo?: string[];
+    verified: true;
+};
+export type BrainRuntimeFact = {
+    id: string;
+    topic: string;
+    route?: string;
+    keywords: string[];
+    questions: string[];
+    answer: string;
+    source: "crybots-frontend";
+    sourcePath: string;
+    verifiedAt: string;
+};
 export type BrainContext = {
     lastIntent?: string;
     lastTarget?: string;
@@ -97,6 +117,20 @@ export type BrainContext = {
     entities?: BrainEntities;
     references?: BrainReference[];
     decision?: ReasoningDecision;
+    lastKnowledgeId?: string;
+    lastKnowledgeTopic?: string;
+    activeGoal?: string;
+    goalTopics?: string[];
+    discoveredFeatures?: BrainDiscoveredFeature[];
+    runtimeFacts?: BrainRuntimeFact[];
+    discoveryVersion?: string;
+    discoveryUpdatedAt?: string;
+    runtimePage?: string;
+    runtimeControls?: {
+        id: string;
+        label: string;
+        disabled: boolean;
+    }[];
 };
 export type BrainResult = {
     intent: string | null;
