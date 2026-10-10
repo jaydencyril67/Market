@@ -64,6 +64,18 @@ const detectGoal=(input:string):GoalGuide|undefined=>{
  return undefined;
 };
 const isGoalFollowUp=(input:string)=>/^(what should i check|what should i look at|what next|what do i check next|which one is best|which is best|which one is worst|why is it losing|how do i know|how can i tell|what does that mean|how do i improve|what should i do|and what about the results|what about my data|what do the records say|what should i compare|can you check that|check it for me|then what|what about now)$/.test(normalize(input));
+const asksAboutCurrentPage=(input:string)=>/\b(what can i do here|what can i do on this page|what can you do here|what buttons are available|which buttons are available|what controls are available|what controls do i have|what is on this page|what can you see here|show me the controls|what actions are available)\b/.test(normalize(input));
+const answerFromRuntimePage=(context:BrainContext)=>{
+ const page=(context.runtimePage||"").replace(/^\//,"").replace(/[-_/]+/g," ").trim()||"current page";
+ const controls=(context.runtimeControls??[]).filter(control=>control&&typeof control.label==="string"&&control.label.trim()).slice(0,12);
+ if(!controls.length)return "I can identify the current page as "+page+", but I couldn't read any visible controls from the app just now.";
+ const enabled=controls.filter(control=>!control.disabled).map(control=>control.label);
+ const disabled=controls.filter(control=>control.disabled).map(control=>control.label);
+ let response="On "+page+", I can currently see these controls: "+enabled.join("; ")+".";
+ if(disabled.length)response+=" These controls appear disabled: "+disabled.join("; ")+".";
+ response+=" This is a live view of the visible interface, not a guarantee that every action is available or that an action has succeeded.";
+ return response;
+};
 const matchDiscoveredFeature=(input:string,features:NonNullable<BrainContext["discoveredFeatures"]>)=>{
  const text=normalize(input);
  const tokens=new Set(text.split(" ").filter(x=>x.length>2&&!["where","what","when","show","open","take","me","the","can","you","please","find","page","section","feature","want","need"].includes(x)));
@@ -115,6 +127,10 @@ export function think(input:string,context:BrainContext={}):BrainResult{
    const response=related?"A little more on "+prior.topic.replace(/-/g," ")+": "+related.answer:"Here is the context I was referring to: "+prior.answer;
    return{intent:`verified:${selected.id}`,confidence:.88,response,action:{type:"none"},normalized,alternatives:[],needsClarification:false,entities,context:{...context,history:[...(context.history??[]),normalized].slice(-10),entities,lastKnowledgeId:selected.id,lastKnowledgeTopic:selected.topic}};
   }
+ }
+ if(asksAboutCurrentPage(input)){
+  const response=answerFromRuntimePage(context);
+  return{intent:"runtime-page-overview",confidence:.9,response,action:{type:"none"},normalized,alternatives:[],needsClarification:false,entities,context:{...context,history:[...(context.history??[]),normalized].slice(-10),entities}};
  }
  const discoveredHit=matchDiscoveredFeature(input,context.discoveredFeatures??[]);
  if(discoveredHit){
