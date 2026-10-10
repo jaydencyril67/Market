@@ -3,6 +3,8 @@ import {LiveQuery,LiveTopic} from "./types";
 
 const topicByIntent:Record<string,LiveTopic|undefined>={
   balance:"account-state",
+  latest_transaction:"transactions",
+  transactions:"transactions",
   portfolio:"account-state",
   bot_status:"bots",
   bots:"bots",
