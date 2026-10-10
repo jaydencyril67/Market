@@ -119,6 +119,30 @@ const matchDiscoveredFeature=(input:string,features:NonNullable<BrainContext["di
  return best&&best.score>=.72?best:undefined;
 };
 
+const clockRequestKind=(input:string):"date"|"time"|"both"|undefined=>{
+ const text=normalize(input);
+ const asksDate=/\\b(what (is|s) (the )?(current )?(date|day)|what (date|day) is it|today s date|current date|date today|what day of the week is it|tell me (the )?date|what is today)\\b/.test(text);
+ const asksTime=/\\b(what (is|s) (the )?(current )?time|what time is it|current time|time now|tell me (the )?time)\\b/.test(text);
+ if(asksDate&&asksTime)return "both";
+ if(asksDate)return "date";
+ if(asksTime)return "time";
+ return undefined;
+};
+function answerClockRequest(input:string,context:BrainContext):string|undefined{
+ const kind=clockRequestKind(input);if(!kind)return undefined;
+ const clock=context.runtimeClock;
+ if(!clock||typeof clock.now!=="string"||typeof clock.timeZone!=="string")return "I don't have a reliable live clock and timezone in this request, so I won't guess the current date or time. Please try again once the app's clock context is available.";
+ const now=new Date(clock.now);if(!Number.isFinite(now.getTime()))return "The clock timestamp I received was invalid, so I can't reliably state the current date or time.";
+ try{
+  const locale=clock.locale&&clock.locale.length<=40?clock.locale:"en-GB";
+  const date=new Intl.DateTimeFormat(locale,{timeZone:clock.timeZone,weekday:"long",year:"numeric",month:"long",day:"numeric"}).format(now);
+  const time=new Intl.DateTimeFormat(locale,{timeZone:clock.timeZone,hour:"numeric",minute:"2-digit",timeZoneName:"short"}).format(now);
+  if(kind==="date")return "Today is "+date+" ("+clock.timeZone+").";
+  if(kind==="time")return "The current time is "+time+" ("+clock.timeZone+").";
+  return "It's "+time+" on "+date+" ("+clock.timeZone+").";
+ }catch{return "I received a clock timezone I couldn't interpret, so I can't reliably state the current date or time."}
+}
+
 export function think(input:string,context:BrainContext={}):BrainResult{
  const requests=splitRequests(input);
  if(requests.length>1){
@@ -135,7 +159,7 @@ export function think(input:string,context:BrainContext={}):BrainResult{
    : composeIntentResponse(first.intent,first.action,first.input||input,context);
   return{intent:first.intent,confidence:first.confidence,response,action:first.action,normalized:normalize(input),alternatives:steps.map(s=>s.intent),needsClarification:false,entities:context.entities??{},context:{...context,lastIntent:first.intent,lastTarget:first.action.type==="navigate"?first.action.target:context.lastTarget,history:[...(context.history??[]),normalize(input)].slice(-10),responseHistory:rememberResponse(context,response),decision}};
  }
- const normalized=normalize(input);const entities=extractEntities(input,context.entities);const references=resolveReferences(input,context,entities);
+ const clockResponse=answerClockRequest(input,context);\n if(clockResponse){const normalizedClock=normalize(input);const clockEntities=extractEntities(input,context.entities);return{intent:"current-date-time",confidence:.99,response:clockResponse,action:{type:"none"},normalized:normalizedClock,alternatives:[],needsClarification:false,entities:clockEntities,context:{...context,history:[...(context.history??[]),normalizedClock].slice(-10),responseHistory:rememberResponse(context,clockResponse),entities:clockEntities}};}\n const normalized=normalize(input);const entities=extractEntities(input,context.entities);const references=resolveReferences(input,context,entities);
  // Resolve elliptical commands only when the prior context gives one safe, concrete target.
  if(/^(do it again|do that again|repeat that|repeat it)$/.test(normalized)){
   const previousFact=[...(context.runtimeFacts??[]),...verifiedFacts].find(entry=>entry.id===context.lastKnowledgeId);
