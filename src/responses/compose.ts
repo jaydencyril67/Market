@@ -152,3 +152,31 @@ export function composeVerifiedFactFollowUp(topic:string,answer:string,hasRelate
 export function composeBalanceNavigationResponse(target:string):string {
  return "Opening "+pageLabel(target,{})+" to retrieve the current balance. The balance itself must come from the connected account data.";
 }
+
+
+export function composeLiveDataStatus(topic:"account-state"|"transactions"|"bots"|"market"|"webhooks"|"notifications",state:"unavailable"|"unrecognized",detail?:string):string {
+ const labels:Record<typeof topic,string>={
+  "account-state":"account and balance data",
+  transactions:"transaction history",
+  bots:"bot records",
+  market:"market data",
+  webhooks:"webhook configuration and delivery records",
+  notifications:"notification records"
+ };
+ const limits:Record<typeof topic,string>={
+  "account-state":"I cannot infer a balance or asset value from unrelated fields.",
+  transactions:"I cannot identify a transaction outcome without recognizable transaction fields.",
+  bots:"I cannot infer bot activity or profitability without recognizable status and performance evidence.",
+  market:"I cannot infer a price or market movement from unrecognized fields.",
+  webhooks:"An endpoint configuration alone does not prove that a delivery succeeded.",
+  notifications:"I cannot determine notification status without recognizable notification fields."
+ };
+ const subject=labels[topic];
+ if(state==="unavailable")return "I couldn't retrieve "+subject+" from the connected CryBots data source"+(detail&&detail.trim()?": "+detail.trim():"")+". No current value or successful outcome is being assumed.";
+ return "CryBots returned data for "+subject+", but the response did not contain fields that can safely answer this request. "+limits[topic];
+}
+
+export function composeLiveGoalUnavailable(goal:string,topics:string[]):string {
+ const label=goal==="bot-performance"?"bot performance":goal==="account-overview"?"your account overview":goal==="webhook-troubleshooting"?"webhook delivery troubleshooting":"this review";
+ return "I couldn't retrieve any of the connected records needed for "+label+(topics.length?" ("+topics.join(", ")+")":"")+". I won't infer missing account values, bot profitability, or delivery outcomes; try again when the relevant data source is available.";
+}
