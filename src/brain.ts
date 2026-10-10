@@ -204,7 +204,10 @@ export function think(input:string,context:BrainContext={}):BrainResult{
   const botId=targetCandidate&&!reservedTargets.has(targetCandidate.toLowerCase())?targetCandidate:undefined;
   const amountMatch=input.match(/\b(?:with|amount(?:\s+of)?|for)\s+(?:\$|usdt\s+|usd\s+)?([0-9]+(?:\.[0-9]+)?)(?:\s*(?:usdt|usd))?\b/i);
   const amount=amountMatch?.[1]?Number(amountMatch[1]):NaN;
-  if(!botId){
+  const directCommand=/^(?:please\\s+)?(?:activate|start|turn on|deactivate|stop|turn off|withdraw)\\b/i.test(input.trim());
+  if(!directCommand){
+   apiClarification="I can prepare this through CryBots’ API, but I need to distinguish a direct command from a how-to question. To submit a request for review, phrase it directly, for example: “activate bot BOT123 with 50 USDT.” No operation has been sent.";
+  }else if(!botId){
    apiClarification="I can prepare that through CryBots’ bot API, but I need the exact bot ID. Please repeat the request with the bot ID, for example: “activate bot BOT123 with 50 USDT.” No operation has been sent.";
   }else if((operation==="bot_activate"||operation==="bot_withdraw")&&(!Number.isFinite(amount)||amount<=0)){
    apiClarification="I found the bot request, but I need a valid USDT amount. Please repeat it with the bot ID and amount, for example: “"+(operation==="bot_activate"?"activate":"withdraw from")+" bot "+botId+" with 50 USDT.” No operation has been sent.";
