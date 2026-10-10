@@ -29,7 +29,7 @@ async function main():Promise<void>{
   assert(typeof result.confidence==="number"&&result.confidence>=0&&result.confidence<=1,"confidence should be within 0..1");
   assert(result.action!==undefined&&typeof result.action.type==="string","an action shape should be present");
   assert(result.normalized==="open my bots","normalized input should be retained");
-  assert(result.action.type==="navigate"&&result.action.target==="my-bots","request should resolve to the My Bots route; got "+JSON.stringify(result.action));
+  assert(result.action.type==="navigate"&&result.action.target==="/bots","request should resolve to the My Bots route; got "+JSON.stringify(result.action));
   assert(result.intent==="bots","request should resolve to the bots intent");
  });
 
