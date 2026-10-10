@@ -150,7 +150,7 @@ export function think(input:string,context:BrainContext={}):BrainResult{
    return{intent:null,confidence:Math.min(...steps.map(step=>step.confidence)),response,action:{type:"none"},normalized:normalize(input),alternatives:steps.map(step=>step.intent).filter(Boolean),needsClarification:true,entities:context.entities??{},context:{...context,history:[...(context.history??[]),normalize(input)].slice(-10)}};
   }
   const decision=decide(steps,intents);const actionPlan=buildActionPlan(steps,steps.flatMap(s=>s.references));const execution=compileExecution(actionPlan,context.entities??{});decision.reason+=" Action plan: "+actionPlan.status+". Execution: "+execution.status+". ";
-  if(decision.mode==="clarify")return{intent:null,confidence:Math.min(...steps.map(s=>s.confidence)),response:failureResponse("unclear",input,context),action:{type:"none"},normalized:normalize(input),alternatives:steps.map(s=>s.intent).filter(Boolean),needsClarification:true,entities:context.entities??{},context:{...context,decision,history:[...(context.history??[]),normalize(input)].slice(-10)}};
+  if(decision.mode==="clarify")return{intent:null,confidence:Math.min(...steps.map(s=>s.confidence)),response:failureResponse("unclear",input,context),action:{type:"none"},normalized:normalize(input),alternatives:steps.map(s=>s.intent).filter(Boolean),needsClarification:true,entities:context.entities??{},context:{...context,decision,entities:extractEntities(input,context.entities),references:steps.flatMap(step=>step.references),history:[...(context.history??[]),normalize(input)].slice(-10)}};
   const first=steps[0];
   const plannedSteps=steps.map((step,index)=>`${index+1}. ${step.input}`);
   const response=decision.mode==="sequence"
