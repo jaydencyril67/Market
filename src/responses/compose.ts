@@ -25,10 +25,8 @@ export function composeIntentResponse(intentId:string,action:BrainAction,input:s
   return choose(["What would you like to work through?","What are you trying to get done?","What should we look into first?","What do you need a hand with?"],seed);
  }
  if(action.type==="navigate"){
-  const purpose=intent?.description.replace(/^User wants? to /i,"").replace(/[.]$/,"");
   const lead=choose(["Opening","Taking you to","Heading to","Bringing up"],seed);
-  const suffix=purpose&&purpose.length>0?choose([" so you can "+purpose," for "+purpose," to help with "+purpose],seed+"purpose"):"";
-  return lead+" "+target+suffix+".";
+  return lead+" "+target+".";
  }
  if(action.type==="back")return choose(["Moving back one page.","Returning to the previous page.","Going back in the current navigation history."],seed);
  if(action.type==="forward")return choose(["Moving forward one page.","Going to the next page in navigation history.","Continuing forward through the current page history."],seed);
